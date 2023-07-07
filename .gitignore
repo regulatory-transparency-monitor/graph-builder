@@ -1,0 +1,4 @@
+deployments/neo4j/data/*
+deployments/neo4j/logs/*
+.DS_Store
+.vscode/

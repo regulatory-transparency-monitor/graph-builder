@@ -73,6 +73,6 @@ func (a *App) InitRoutes() {
 	a.Router = mux.NewRouter()
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{Service: a.Service}}))
-	a.Router.Handle("/playground", playground.Handler("GoNeo4jGql GraphQL playground", "/query"))
-	a.Router.Handle("/query", srv)
+	a.Router.Handle("/playground", playground.Handler("GoNeo4jGql GraphQL playground", "/instance"))
+	a.Router.Handle("/instance", srv)
 }
