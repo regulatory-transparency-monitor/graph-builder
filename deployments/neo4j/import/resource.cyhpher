@@ -1,0 +1,1 @@
+CREATE (:Instance {id: "ee6484ea-2b33-46c6-938d-bc47c11d017b", name: "k8s-demo-k8s-master-1", description: "k8s-demo-k8s-master-1", projectID: "c6b10513ac5542fd844a1f6c7c4bca80", status: "Shutoff", availabilityZone: "dc3-a-04", created: "11 May 2023, 3:19 p.m"})

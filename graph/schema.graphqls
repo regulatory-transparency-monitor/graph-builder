@@ -1,0 +1,60 @@
+interface Node {
+  uuid: ID!
+}
+
+type Zone implements Node{
+    uuid: ID!
+    availabilityZone: String!
+}
+
+type Cluster implements Node{
+    uuid: ID!
+    id: ID!
+    name: String!
+    masterNodes: [Instance!]!
+    workerNodes: [Instance!]
+}
+
+type Instance implements Node{
+    uuid: ID!
+    id: ID!
+    name: String!
+    description: String
+    projectID: String!
+    status: String
+    availabilityZone: [Zone!]!
+    created: String!
+    cluster: Cluster
+    mountedVolume: Volume
+}
+
+type Volume implements Node{
+  uuid: ID!
+  id: ID!
+  name: String!
+  pod: Pod
+  attachedInstance: Instance!
+}
+
+type Pod {
+  id: ID!
+  name: String!
+  workerNode: Instance!
+  schema: String
+  has_pii: Boolean!
+  volumes: [Volume!]
+}
+
+type Schema {
+  id: ID!
+  pod: Pod!
+  privacyInfo: String!
+}
+
+type Query {
+  """ Find a Instance by its uuid """
+  instance(uuid: String!): Instance
+
+  """ Find movies by title and actor name """
+  instances(projectID: String, status: String): [Instance!]!
+}
