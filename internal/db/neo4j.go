@@ -15,15 +15,15 @@ import (
 func NewNeo4jConnection() (neo4j.Driver, error) {
 	target := fmt.Sprintf("%s://%s:%d", viper.GetString("NEO4J_PROTO"), viper.GetString("NEO4J_HOST"), viper.GetInt("NEO4J_PORT"))
 
-	logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_USER"))
-	logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_PASS"))
+	//logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_USER"))
+	//logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_PASS"))
 	driver, err := neo4j.NewDriver(
 		target,
 		neo4j.BasicAuth(viper.GetString("NEO4J_USER"), viper.GetString("NEO4J_PASS"), ""),
 		func(c *neo4j.Config) {
 			c.Encrypted = false
 		})
-		
+
 	if err != nil {
 		logger.Error("Cannot connect to Neo4j Server", err)
 		return nil, err
@@ -95,70 +95,41 @@ func (r *Neo4jRepository) TestNeo4jConnection(ctx context.Context) (string, erro
 
 }
 
-/* // FindInstances finds Instances by title and actor
-func (r *Neo4jRepository) FindInstances(ctx context.Context, title *string, actor *string) ([]*models.Instance, error) {
-	InstanceTitle := ""
-	actorName := ""
+func (r *Neo4jRepository) FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error) {
 
 	query := `
-		match (m:Instance) return m.uuid, m.title, m.released, m.tagline
-	`
-
-	if title != nil {
-		query = `
-			match (m:Instance) where lower(m.title) contains $InstanceTitle return m.uuid, m.title, m.released, m.tagline
-		`
-		InstanceTitle = *title
-	}
-
-	if actor != nil {
-		query = `
-			match (m:Instance)-[r:ACTED_IN]-(p:Person) where lower(p.name) contains $actor return m.uuid, m.title, m.released, m.tagline
-		`
-		actorName = *actor
-	}
-
-	if title != nil && actor != nil {
-		query = `
-			match (m:Instance)-[r:ACTED_IN]-(p:Person) where lower(m.title) contains $InstanceTitle and lower(p.name) contains $actor return m.uuid, m.title, m.released, m.tagline
-		`
-		InstanceTitle = *title
-		actorName = *actor
-	}
+		match (m:Instance) where m.projectID = $projectID return m.id, m.name, m.created, m.status `
 
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-
 	if err != nil {
 		return nil, err
 	}
-
 	defer session.Close()
 
 	args := map[string]interface{}{
-		"InstanceTitle": strings.ToLower(InstanceTitle),
-		"actor":      strings.ToLower(actorName),
+		"projectID": projectID,
 	}
 
 	result, err := session.Run(query, args)
 	if err != nil {
-		logger.Error("Cannot find Instances", err)
+		logger.Error("Cannot find instances by projectID", logger.LogFields{"projectID": projectID}, err)
+		return nil, err
 	}
 
 	logger.Debug("CYPHER_QUERY", logger.LogFields{"query": query, "args": args})
 
-	var Instances []*models.Instance
+	instances := make([]*model.Instance, 0)
 
 	for result.Next() {
-		Instance := models.Instance{}
-		ParseCypherQueryResult(result.Record(), "m", &Instance)
-
-		Instances = append(Instances, &Instance)
+		instance := model.Instance{}
+		ParseCypherQueryResult(result.Record(), "m", &instance)
+		instances = append(instances, &instance)
 	}
 
-	return Instances, err
+	return instances, nil
 }
 
-// FindInstanceParticipationsByPersonUUID finds people that participated in a Instance
+/*// FindInstanceParticipationsByPersonUUID finds people that participated in a Instance
 func (r *Neo4jRepository) FindInstanceParticipationsByPersonUUID(ctx context.Context, uuid string) ([]*model.Participation, error) {
 	query := `
 		match (m:Instance)-[relatedTo]-(p:Person) where p.uuid = $uuid return m.uuid, m.title, m.released, m.tagline, type(relatedTo) as role

@@ -6,7 +6,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/generated"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
@@ -24,8 +23,14 @@ func (r *queryResolver) Instance(ctx context.Context, uuid string) (*model.Insta
 }
 
 // Instances is the resolver for the instances field.
-func (r *queryResolver) Instances(ctx context.Context, projectID *string, status *string) ([]*model.Instance, error) {
-	panic(fmt.Errorf("not implemented: Instances - instances"))
+func (r *queryResolver) Instances(ctx context.Context, projectID *string) ([]*model.Instance, error) {
+	instances, err := r.Service.FindInstanceByProjectID(ctx, *projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	return instances, nil
+
 }
 
 // Query returns generated.QueryResolver implementation.

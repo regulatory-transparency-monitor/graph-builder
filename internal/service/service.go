@@ -24,6 +24,11 @@ func (s *Service) FindInstanceByUUID(ctx context.Context, uuid string) (*model.I
 	return s.repository.FindInstanceByUUID(ctx, uuid)
 }
 
+// FindInstanceByUUID finds a Instance by its projectID
+func (s *Service) FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error) {
+	return s.repository.FindInstanceByProjectID(ctx, projectID)
+}
+
 // TestNeo4jConnection tests connectivity to neo4j db
 func (s *Service) TestNeo4jConnection(ctx context.Context) (string, error) {
 	return s.repository.TestNeo4jConnection(ctx)

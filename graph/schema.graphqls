@@ -54,7 +54,7 @@ type Schema {
 type Query {
   """ Find a Instance by its uuid """
   instance(uuid: String!): Instance
-
-  """ Find movies by title and actor name """
-  instances(projectID: String, status: String): [Instance!]!
+  """ Find instances by projectID """
+  instances(projectID: String): [Instance!]!
 }
+

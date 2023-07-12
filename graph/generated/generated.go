@@ -75,7 +75,7 @@ type ComplexityRoot struct {
 
 	Query struct {
 		Instance  func(childComplexity int, uuid string) int
-		Instances func(childComplexity int, projectID *string, status *string) int
+		Instances func(childComplexity int, projectID *string) int
 	}
 
 	Schema struct {
@@ -100,7 +100,7 @@ type ComplexityRoot struct {
 
 type QueryResolver interface {
 	Instance(ctx context.Context, uuid string) (*model.Instance, error)
-	Instances(ctx context.Context, projectID *string, status *string) ([]*model.Instance, error)
+	Instances(ctx context.Context, projectID *string) ([]*model.Instance, error)
 }
 
 type executableSchema struct {
@@ -287,7 +287,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Query.Instances(childComplexity, args["projectID"].(*string), args["status"].(*string)), true
+		return e.complexity.Query.Instances(childComplexity, args["projectID"].(*string)), true
 
 	case "Schema.id":
 		if e.complexity.Schema.ID == nil {
@@ -504,9 +504,8 @@ type Schema {
 type Query {
   """ Find a Instance by its uuid """
   instance(uuid: String!): Instance
-
-  """ Find movies by title and actor name """
-  instances(projectID: String, status: String): [Instance!]!
+  """ Find instances by projectID """
+  instances(projectID: String): [Instance!]!
 }`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
@@ -557,15 +556,6 @@ func (ec *executionContext) field_Query_instances_args(ctx context.Context, rawA
 		}
 	}
 	args["projectID"] = arg0
-	var arg1 *string
-	if tmp, ok := rawArgs["status"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
-		arg1, err = ec.unmarshalOString2ᚖstring(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["status"] = arg1
 	return args, nil
 }
 
@@ -1706,7 +1696,7 @@ func (ec *executionContext) _Query_instances(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().Instances(rctx, fc.Args["projectID"].(*string), fc.Args["status"].(*string))
+		return ec.resolvers.Query().Instances(rctx, fc.Args["projectID"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

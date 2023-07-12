@@ -12,7 +12,12 @@ services:
     restart: always
     environment:
       - NEO4J_AUTH=neo4j/testingshit
-        
+      - NEO4J_apoc_import_file_enabled=true 
+      - NEO4J_apoc_import_file_use_neo4j_config=true 
+      - NEO4J_PLUGINS=["apoc"] 
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_security_procedures_whitelist=apoc.*
+      - NEO4J_apoc_uuid_enabled=true   
     networks:
       - neo4j-net
     ports:
