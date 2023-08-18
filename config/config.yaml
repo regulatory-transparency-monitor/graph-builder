@@ -1,0 +1,31 @@
+providers:
+  - name: openstack
+    enabled: true
+    api_access:
+      identity_api: "https://api.pub1.infomaniak.cloud/identity/v3/"
+      compute_api: "https://api.pub1.infomaniak.cloud/compute/v2.1/"
+    credentials:
+      os_auth_type: "app-credentials"
+      app_credentials_id: "d4ac29bc2a0449419754693baa1c9e3f"
+      app_credentials_secret: "J9zApG1iGomwo2463ImstALe3QA8A-Rwl_NrpmA1LsD-ua9Wgm95hOKQ_pp7EfJ3dYDFMQ-LlC5l4hIAMtEkLg"
+  - name: aws
+    enabled: false
+  - name: kubernetes
+    enabled: false
+logger:
+  formatter: "console"
+  level: "debug"
+# #Logger settings
+# LOGGER_FORMATTER: "console" 
+# LOGGER_LEVEL: "debug"
+# # Server configurations // should be loaded from terraform
+server:
+  ip: "192.168.2.139"
+# # Neo4j database configurations should be read from 'database'
+# API_PORT: "8080"
+# NEO4J_HOST: "localhost"
+# NEO4J_PORT: "7687"
+# NEO4J_USER: "neo4j"
+# NEO4J_PASS: "testingshit"
+# NEO4J_PROTO: "bolt"
+

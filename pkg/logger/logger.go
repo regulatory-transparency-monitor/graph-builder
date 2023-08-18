@@ -6,9 +6,9 @@
 //    "error"
 //    "fatal"
 //
-// Levels should be specified using env var LOGGER_LEVEL
+// Levels should be specified using env var logg
 // Then the logger will only log entries with that severity or anything above it.
-//   e.g.  LOGGER_LEVEL=INFO --> Will log anything that is info or above
+//   e.g.  logg=INFO --> Will log anything that is info or above
 //   (warn, error, fatal)
 package logger
 
@@ -54,7 +54,7 @@ func InitializeLogger() {
 	// TODO: add possibility to output to file in the future
 	logger.SetOutput(os.Stderr)
 
-	formatter := viper.GetString("LOGGER_FORMATTER")
+	formatter := viper.GetString("logger.formatter")
 	switch strings.ToLower(formatter) {
 	case string(FormatConsole):
 		logger.SetFormatter(&prefixed.TextFormatter{})
@@ -64,7 +64,7 @@ func InitializeLogger() {
 		logger.SetFormatter(&logrus.JSONFormatter{})
 	}
 
-	level := viper.GetString("LOGGER_LEVEL")
+	level := viper.GetString("logger.level")
 	switch strings.ToLower(level) {
 	case string(LevelDebug):
 		logger.SetLevel(logrus.DebugLevel)
@@ -126,7 +126,7 @@ func NewLogger() *logrus.Entry {
 //  - error (for logging error trace)
 //  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Debug(args ...interface{}) {
-	level := strings.ToLower(viper.GetString("LOGGER_LEVEL"))
+	level := strings.ToLower(viper.GetString("logger.level"))
 	if level != string(LevelDebug) {
 		return
 	}
@@ -146,7 +146,7 @@ func Debug(args ...interface{}) {
 //  - error (for logging error trace)
 //  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Info(args ...interface{}) {
-	level := strings.ToLower(viper.GetString("LOGGER_LEVEL"))
+	level := strings.ToLower(viper.GetString("logger.level"))
 	if level != string(LevelInfo) && level != string(LevelDebug) {
 		return
 	}
@@ -166,7 +166,7 @@ func Info(args ...interface{}) {
 //  - error (for logging error trace)
 //  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Warning(args ...interface{}) {
-	level := strings.ToLower(viper.GetString("LOGGER_LEVEL"))
+	level := strings.ToLower(viper.GetString("logger.level"))
 	if level == string(LevelError) || level == string(LevelFatal) {
 		return
 	}
@@ -186,7 +186,7 @@ func Warning(args ...interface{}) {
 //  - error (for logging error trace)
 //  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Error(args ...interface{}) {
-	level := strings.ToLower(viper.GetString("LOGGER_LEVEL"))
+	level := strings.ToLower(viper.GetString("logger.level"))
 	if level == string(LevelFatal) {
 		return
 	}

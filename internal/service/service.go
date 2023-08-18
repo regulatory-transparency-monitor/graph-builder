@@ -5,6 +5,7 @@ import (
 
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/db"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 )
 
 // Service exposes application bussiness logic
@@ -31,5 +32,6 @@ func (s *Service) FindInstanceByProjectID(ctx context.Context, projectID string)
 
 // TestNeo4jConnection tests connectivity to neo4j db
 func (s *Service) TestNeo4jConnection(ctx context.Context) (string, error) {
+	logger.Info("Check works")
 	return s.repository.TestNeo4jConnection(ctx)
 }

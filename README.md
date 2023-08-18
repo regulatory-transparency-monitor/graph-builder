@@ -1,6 +1,6 @@
 # Graph-builder service (Transparency Monitoring Service (TMS)) 
-This repository holds the component for constructing the graph out of the different data sources. 
-
+This repository holds the component for constructing the graph out of the different data sources. Planned architecture: 
+[Excali Board](https://excalidraw.com/#json=nTY2HnHaiaMcYJOYK8beS,YWVmtXo6pRIJhX07fY_aPA)
 
 ## First Steps:
 ```sh
@@ -55,6 +55,17 @@ go generate ./...
 docker-compose exec neo4j /bin/bash -c 'cat /var/lib/neo4j/import/resource.cyhpher | cypher-shell -u neo4j -p testingshit'
 ```
 
+## Run service locally
+```sh
+# start docker container 
+cd deployments
+docker compose up 
+go run ./server.go 
+# Access GraphQL playground
+http://192.168.2.139:8080/playground
+# Access Neo4j Database UI
+http://localhost:7474/browser/
+```
 
 ## Visualizing code
 Requirement install go-callvis and Graphviz (https://www.graphviz.org/download/)
