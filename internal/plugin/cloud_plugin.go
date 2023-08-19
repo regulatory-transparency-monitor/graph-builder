@@ -10,7 +10,8 @@ import (
 type ProviderPlugin interface {
 	// TODO pass url as parameter
 	Initialize() error
-	Scan() ([]interface{}, error)
+	//TODO think about returning pointer or value
+	Scan() (*services.CombinedResources, error)
 }
 
 type PluginConstructor func() ProviderPlugin
@@ -63,7 +64,6 @@ func RegisterPlugin() ProviderPlugin {
 }
 
 func StartScan(pluginInstance ProviderPlugin) {
-
 	err := pluginInstance.Initialize()
 	if err != nil {
 		logger.Error("Error initializing plugin %v", err)
@@ -71,8 +71,8 @@ func StartScan(pluginInstance ProviderPlugin) {
 	d, err := pluginInstance.Scan()
 	if err != nil {
 		logger.Error("Error scanning plugin %v", err)
-	} 
-	logger.Info("Data: %v", d)
+	}
+	logger.Info("Data: %v", logger.LogFields{"Provider Plugin response": d.Data})
 
 }
 

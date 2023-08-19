@@ -15,8 +15,6 @@ import (
 func NewNeo4jConnection() (neo4j.Driver, error) {
 	target := fmt.Sprintf("%s://%s:%d", viper.GetString("NEO4J_PROTO"), viper.GetString("NEO4J_HOST"), viper.GetInt("NEO4J_PORT"))
 
-	//logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_USER"))
-	//logger.Info("Inspect Driver content Neo4j Server", viper.GetString("NEO4J_PASS"))
 	driver, err := neo4j.NewDriver(
 		target,
 		neo4j.BasicAuth(viper.GetString("NEO4J_USER"), viper.GetString("NEO4J_PASS"), ""),
@@ -35,7 +33,6 @@ func NewNeo4jConnection() (neo4j.Driver, error) {
 }
 
 // Neo4jRepository is a Neo4j DB repository
-// Neo4jRepository struct represents a repository designed for interacting with a Neo4j database
 type Neo4jRepository struct {
 	Connection neo4j.Driver
 }

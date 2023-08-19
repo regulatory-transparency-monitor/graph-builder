@@ -34,10 +34,12 @@ go run github.com/99designs/gqlgen generate
 ├── schema.graphqls # graphql schema definition
 │
 ├── internal
-│   ├── db # TODO 
-│   └── services # TODO
+│   ├── db #  neo4j, utils, interface.go
+│   ├── plugin
+│   └── services # 
+│ 
 ├── pkg
-│   └── logger # TODO 
+│   └── logger #  
 │      ├── logger.go # logger interface
 │      └── globals.go # ...
 └── server.go # runnable server
