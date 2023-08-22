@@ -22,21 +22,23 @@ go run github.com/99designs/gqlgen generate
 ```sh
 .
 │
-├── cmd # contains executables required to start app
+├── cmd # TODO move server.go here, contains executables required to start app
 ├── deployment # deployment scripts for local or prod env
 ├── gqlgen.yml # GqlGen configuration
 ├── graph
-│   ├── dataloader # TODO implements the user dataloader 
+│   │   
 │   ├── generated # GqlGen generated files
 │   ├── model # defines User and Todo model structs
 │   └── resolver.go # implements the graphql queries/mutations
 │    
 ├── schema.graphqls # graphql schema definition
 │
-├── internal
-│   ├── db #  neo4j, utils, interface.go
-│   ├── plugin
-│   └── services # 
+├── internal # main components wiring applciation componemnts and
+│   ├── dataparser   #  transforms provider plugin specfifc data into a generic model
+│   ├── orchestrator #  TODO might move out of internal/ orchestrates registering plugins, data parsing and transfroming
+│   ├── plugin       #  provides functionality to register, inialize provider specific instances and fetch Data
+│   ├── repository   #  adpater for database connection
+│   └── services     #  service layer, exposes busniss logic to the application define operations executed from             │                       external interfaces such as graphQL endpoints
 │ 
 ├── pkg
 │   └── logger #  

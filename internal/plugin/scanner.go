@@ -31,7 +31,7 @@ func MapURL() map[string]string {
 		for key, value := range apiAccess {
 			// Ensure the value is a string before adding to the map
 			if strValue, valid := value.(string); valid {
-				apiMap[key] = strValue
+				apiMap[key] = strValue 
 			}
 		}
 	}

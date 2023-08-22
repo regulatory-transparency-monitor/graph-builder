@@ -46,21 +46,24 @@ func (o *Orchestrator) Run() error {
 			printInfrastructureComponent(&genericData)
 		}
 
-		// TODO send generic Data to repository and store nodes and relationships in neo4j
 		// 4) Store generic data in Neo4j
 		for _, component := range genericData {
 		    if component.Type == "Project" {
-		        err := a.Neo4jRepo.CreateOrUpdateProject(component)
+		        err := o.Neo4jRepo.CreateOrUpdateProject(component)
 		        if err != nil {
 		            logger.Error("Error storing project in Neo4j: %v", err)
 		        }
 		    }
+			if component.Type == "Server" {
+		        err := o.Neo4jRepo.CreateOrUpdateServer(component)
+		        if err != nil {
+		            logger.Error("Error storing server in Neo4j: %v", err)
+		        }
+		    }
 		    // TODO: Handle other component types as needed
 		}
-
 	}
 	return nil
-
 }
 
 func printInfrastructureComponent(ic *dataparser.InfrastructureComponent) {

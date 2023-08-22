@@ -36,7 +36,7 @@ func ParseCypherQueryResult(record neo4j.Record, alias string, target interface{
 				case "int64":
 					field.SetInt(val.(int64))
 				default:
-					return fmt.Errorf("Invalid type: %s", t)
+					return fmt.Errorf("invalid type: %s", t)
 				}
 			}
 		}
@@ -72,4 +72,13 @@ func PtrOrPtrEmptyString(ptr *string) *string {
 // Float64Ptr returns a pointer to the float64 value passed in.
 func Float64Ptr(v float64) *float64 {
 	return &v
+}
+
+
+
+func GetMetadataValue(meta map[string]interface{}, key string, defaultValue interface{}) interface{} {
+	if value, exists := meta[key]; exists {
+		return value
+	}
+	return defaultValue
 }

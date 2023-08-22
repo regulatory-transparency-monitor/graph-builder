@@ -38,6 +38,7 @@ type Neo4jRepository struct {
 	Connection neo4j.Driver
 }
 
+// CreateOrUpdateProject creates or updates a  project node
 func (r *Neo4jRepository) CreateOrUpdateProject(project dataparser.InfrastructureComponent) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
@@ -47,6 +48,112 @@ func (r *Neo4jRepository) CreateOrUpdateProject(project dataparser.Infrastructur
 
 	query := `
     MERGE (p:Project {ID: $id})
+    ON CREATE SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone, p.Enabled = $enabled, p.Description = $description
+    ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone, p.Enabled = $enabled, p.Description = $description
+    `
+
+	parameters := map[string]interface{}{
+		"id":               project.ID,
+		"name":             project.Name,
+		"type":             project.Type,
+		"availabilityZone": project.AvailabilityZone,
+		"description":      GetMetadataValue(project.Metadata, "Description", ""),
+		"enabled":          GetMetadataValue(project.Metadata, "Enabled", false),
+	}
+
+	_, err = session.Run(query, parameters)
+	return err
+}
+
+// CreateOrUpdateServer creates or updates a server node
+func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+    MERGE (s:Server {ID: $id})
+    ON CREATE SET 
+        s.Name = $name,
+        s.Type = $type,
+        s.AvailabilityZone = $availabilityZone,
+        s.UserID = $userID,
+        s.HostID = $hostID,
+        s.TenantID = $tenantID,
+        s.Created = $created,
+        s.Updated = $updated,
+        s.VolumesAttached = $volumesAttached,
+        s.Status = $status
+    ON MATCH SET 
+        s.Name = $name,
+        s.Type = $type,
+        s.AvailabilityZone = $availabilityZone,
+        s.UserID = $userID,
+        s.HostID = $hostID,
+        s.TenantID = $tenantID,
+        s.Created = $created,
+        s.Updated = $updated,
+        s.VolumesAttached = $volumesAttached,
+        s.Status = $status
+    `
+
+	parameters := map[string]interface{}{
+		"id":               server.ID,
+		"name":             server.Name,
+		"type":             server.Type,
+		"availabilityZone": server.AvailabilityZone,
+		"userID":           GetMetadataValue(server.Metadata, "UserID", ""),
+		"hostID":           GetMetadataValue(server.Metadata, "HostID", ""),
+		"tenantID":         GetMetadataValue(server.Metadata, "TenantID", ""),
+		"created":          GetMetadataValue(server.Metadata, "Created", ""),
+		"updated":          GetMetadataValue(server.Metadata, "Updated", ""),
+		"volumesAttached":  GetMetadataValue(server.Metadata, "VolumesAttached", ""),
+		"status":           GetMetadataValue(server.Metadata, "Status", ""),
+	}
+
+	_, err = session.Run(query, parameters)
+	if err != nil {
+		logger.Error("Error creating server in Neo4j", err)
+	} else { // if no err create relationship
+		logger.Debug("Created server in Neo4j", logger.LogFields{"server_id": server.ID})
+
+		// Handle relationships
+		for _, rel := range server.Relationships {
+			if rel.Type == "BelongsTo" { // specific relationship type
+				relationshipQuery := `
+            MATCH (s:Server {ID: $serverID}), (p:Project {ID: $targetID})
+            MERGE (s)-[:BelongsTo]->(p)
+            `
+
+				relationshipParameters := map[string]interface{}{
+					"serverID": server.ID,
+					"targetID": rel.Target,
+				}
+
+				_, err = session.Run(relationshipQuery, relationshipParameters)
+				if err != nil {
+					return err
+				}
+			}
+
+		}
+
+	}
+	return err
+}
+
+// CreateOrUpdateVolume creates or updates a Volume Node
+func (r *Neo4jRepository) CreateOrUpdateVolume(project dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+    MERGE (s:Server {ID: $id})
     ON CREATE SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
     ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
     `
@@ -56,6 +163,33 @@ func (r *Neo4jRepository) CreateOrUpdateProject(project dataparser.Infrastructur
 		"name":             project.Name,
 		"type":             project.Type,
 		"availabilityZone": project.AvailabilityZone,
+		"metadata":         project.Metadata,
+	}
+
+	_, err = session.Run(query, parameters)
+	return err
+}
+
+// CreateOrUpdatePod creates or updates a Kubernetes Pod
+func (r *Neo4jRepository) CreateOrUpdatePod(project dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+    MERGE (s:Server {ID: $id})
+    ON CREATE SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
+    ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
+    `
+
+	parameters := map[string]interface{}{
+		"id":               project.ID,
+		"name":             project.Name,
+		"type":             project.Type,
+		"availabilityZone": project.AvailabilityZone,
+		"metadata":         project.Metadata,
 	}
 
 	_, err = session.Run(query, parameters)
@@ -98,6 +232,9 @@ func (r *Neo4jRepository) FindInstanceByUUID(ctx context.Context, uuid string) (
 
 func (r *Neo4jRepository) TestNeo4jConnection(ctx context.Context) (string, error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
 	defer session.Close()
 
 	result, err := session.Run("RETURN 1", nil)

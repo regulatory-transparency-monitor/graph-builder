@@ -78,7 +78,6 @@ func transformResourceToComponent(resource services.ServiceData) []Infrastructur
 				Metadata: map[string]interface{}{
 					"Description": project.Project.Description,
 					"Enabled":     project.Project.Enabled,
-					// ... add more fields as needed
 				},
 			}
 			components = append(components, component)
