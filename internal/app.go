@@ -11,8 +11,10 @@ import (
 	"github.com/regulatory-transparency-monitor/graph-builder/config"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/generated"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/db"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/plugin"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/orchestrator"
+
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
 	service "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 
@@ -27,33 +29,34 @@ type App struct {
 
 // Init initializes app
 func Init() *App {
-	// Load config
+	// 1) Read configurations
 	err := config.LoadConfig()
 	if err != nil {
 		logger.Fatal("Loading config failure: ", err)
-
 	}
 
-	// Initialize Plugins
-	plugin.InitPlugins()
-	p := plugin.RegisterPlugin()
-	plugin.StartScan(p)
-
 	// Connect to Neo4j
-	neo4Conn, err := db.NewNeo4jConnection()
+	neo4Conn, err := repository.NewNeo4jConnection()
 	if err != nil {
 		logger.Fatal(err)
 		os.Exit(1)
 	}
 
-	r := &db.Neo4jRepository{
+	r := &repository.Neo4jRepository{
 		Connection: neo4Conn,
+	}
+
+	// Instantiate orchestrator
+	tf := &dataparser.DefaultTransformerFactory{}
+	orchestrator := orchestrator.NewOrchestrator(tf, r)
+	err = orchestrator.Run()
+	if err != nil {
+		logger.Error("Orchestrator failure: ", err)
 	}
 
 	return &App{
 		Service: service.NewService(r),
 	}
-
 }
 
 // Run executes app

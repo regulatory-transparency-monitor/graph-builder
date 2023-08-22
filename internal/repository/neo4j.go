@@ -1,4 +1,4 @@
-package db
+package repository
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 	"github.com/spf13/viper"
 )
@@ -35,6 +36,30 @@ func NewNeo4jConnection() (neo4j.Driver, error) {
 // Neo4jRepository is a Neo4j DB repository
 type Neo4jRepository struct {
 	Connection neo4j.Driver
+}
+
+func (r *Neo4jRepository) CreateOrUpdateProject(project dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+    MERGE (p:Project {ID: $id})
+    ON CREATE SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
+    ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
+    `
+
+	parameters := map[string]interface{}{
+		"id":               project.ID,
+		"name":             project.Name,
+		"type":             project.Type,
+		"availabilityZone": project.AvailabilityZone,
+	}
+
+	_, err = session.Run(query, parameters)
+	return err
 }
 
 // FindInstanceByUUID finds a Instance by its uuid

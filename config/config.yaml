@@ -2,6 +2,7 @@ providers:
   - name: openstack
     enabled: true
     api_access:
+      base_url: ""
       identity_api: "https://api.pub1.infomaniak.cloud/identity/v3/"
       compute_api: "https://api.pub1.infomaniak.cloud/compute/v2.1/"
     credentials:
@@ -10,8 +11,18 @@ providers:
       app_credentials_secret: "J9zApG1iGomwo2463ImstALe3QA8A-Rwl_NrpmA1LsD-ua9Wgm95hOKQ_pp7EfJ3dYDFMQ-LlC5l4hIAMtEkLg"
   - name: aws
     enabled: false
+    api_access:
+      base_url: ""
+      identity_api: ""
+      compute_api: ""
+    credentials:
   - name: kubernetes
     enabled: false
+    api_access:
+      base_url: ""
+      identity_api: ""
+      compute_api: ""
+    credentials:
 logger:
   formatter: "console"
   level: "debug"

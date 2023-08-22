@@ -1,18 +1,21 @@
 // Package logger provides logging functionality using Apache Format
 // The following levels are supported:
-//    "debug"
-//    "info"
-//    "warning"
-//    "error"
-//    "fatal"
+//
+//	"debug"
+//	"info"
+//	"warning"
+//	"error"
+//	"fatal"
 //
 // Levels should be specified using env var logg
 // Then the logger will only log entries with that severity or anything above it.
-//   e.g.  logg=INFO --> Will log anything that is info or above
-//   (warn, error, fatal)
+//
+//	e.g.  logg=INFO --> Will log anything that is info or above
+//	(warn, error, fatal)
 package logger
 
 import (
+	"io"
 	"os"
 	"strings"
 
@@ -51,7 +54,21 @@ const (
 func InitializeLogger() {
 	logger := logrus.New()
 
+	logger.ReportCaller = true
 	// TODO: add possibility to output to file in the future
+
+	// Create (or open) the log file
+	logFile, err := os.OpenFile("application.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		// Handle the error. You can decide if you want to panic or just print a message
+		panic("Failed to open log file: " + err.Error())
+	}
+
+	// Use io.MultiWriter so that logs are written to both console and file.
+	mw := io.MultiWriter(os.Stderr, logFile)
+	logger.SetOutput(mw)
+
+	// TODO comment out for prouction
 	logger.SetOutput(os.Stderr)
 
 	formatter := viper.GetString("logger.formatter")
@@ -122,9 +139,9 @@ func NewLogger() *logrus.Entry {
 
 // Debug logs a debug message with "debug" level
 // It supports the following arguments:
-//  - string (for main log message)
-//  - error (for logging error trace)
-//  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
+//   - string (for main log message)
+//   - error (for logging error trace)
+//   - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Debug(args ...interface{}) {
 	level := strings.ToLower(viper.GetString("logger.level"))
 	if level != string(LevelDebug) {
@@ -142,9 +159,9 @@ func Debug(args ...interface{}) {
 
 // Info logs a debug message with "info" level
 // It supports the following arguments:
-//  - string (for main log message)
-//  - error (for logging error trace)
-//  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
+//   - string (for main log message)
+//   - error (for logging error trace)
+//   - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Info(args ...interface{}) {
 	level := strings.ToLower(viper.GetString("logger.level"))
 	if level != string(LevelInfo) && level != string(LevelDebug) {
@@ -162,9 +179,9 @@ func Info(args ...interface{}) {
 
 // Warning logs a debug message with "Warning" level
 // It supports the following arguments:
-//  - string (for main log message)
-//  - error (for logging error trace)
-//  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
+//   - string (for main log message)
+//   - error (for logging error trace)
+//   - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Warning(args ...interface{}) {
 	level := strings.ToLower(viper.GetString("logger.level"))
 	if level == string(LevelError) || level == string(LevelFatal) {
@@ -182,9 +199,9 @@ func Warning(args ...interface{}) {
 
 // Error logs a debug message with "Error" level
 // It supports the following arguments:
-//  - string (for main log message)
-//  - error (for logging error trace)
-//  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
+//   - string (for main log message)
+//   - error (for logging error trace)
+//   - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Error(args ...interface{}) {
 	level := strings.ToLower(viper.GetString("logger.level"))
 	if level == string(LevelFatal) {
@@ -202,9 +219,9 @@ func Error(args ...interface{}) {
 
 // Fatal logs a debug message with "Error" level
 // It supports the following arguments:
-//  - string (for main log message)
-//  - error (for logging error trace)
-//  - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
+//   - string (for main log message)
+//   - error (for logging error trace)
+//   - logger.LogFields (for custom fields besides the log message - e.g. item_uuid)
 func Fatal(args ...interface{}) {
 	// Initialize logger if it hasn't been initialized yet
 	if Logger == nil {

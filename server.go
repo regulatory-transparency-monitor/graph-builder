@@ -2,7 +2,6 @@ package main
 
 import (
 	tms "github.com/regulatory-transparency-monitor/graph-builder/internal"
-	
 )
 
 func main() {
@@ -10,5 +9,3 @@ func main() {
 	transparencyMonitoringService.InitRoutes()
 	transparencyMonitoringService.Run()
 }
-
-

@@ -4,17 +4,17 @@ import (
 	"context"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/db"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 )
 
 // Service exposes application bussiness logic
 type Service struct {
-	repository db.Repository
+	repository repository.Repository
 }
 
 // NewService creates a new service
-func NewService(r db.Repository) Service {
+func NewService(r repository.Repository) Service {
 	return Service{
 		repository: r,
 	}

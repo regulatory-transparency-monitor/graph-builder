@@ -1,0 +1,8 @@
+time="2023-08-22T00:18:08+02:00" level=info msg="Connected to Neo4j Server" neo4j_server_uri="bolt://localhost:7687" prefix=main
+time="2023-08-22T00:18:08+02:00" level=info msg="Scanning resources" prefix=main provider plugin =openstack
+time="2023-08-22T00:18:10+02:00" level=debug msg="Fetching data ... " prefix=main
+time="2023-08-22T00:18:10+02:00" level=debug msg="Idenity Component: %v" prefix=main result ={c6b10513ac5542fd844a1f6c7c4bca80 PCP-JMY29J4 Project  map[Description:ghost-town Enabled:true] []}
+time="2023-08-22T00:18:10+02:00" level=debug msg="Transformed: " prefix=main resulting in =[{c6b10513ac5542fd844a1f6c7c4bca80 PCP-JMY29J4 Project  map[Description:ghost-town Enabled:true] []}]
+time="2023-08-22T00:18:10+02:00" level=debug msg="Transformed: " prefix=main resulting in =[]
+time="2023-08-22T00:18:10+02:00" level=debug msg="Data:" Generic Data=[{c6b10513ac5542fd844a1f6c7c4bca80 PCP-JMY29J4 Project  map[Description:ghost-town Enabled:true] []}] prefix=main
+time="2023-08-22T00:18:10+02:00" level=info msg="GraphQL API Listening: " api_url=":8080" prefix=main
