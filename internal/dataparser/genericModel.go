@@ -13,12 +13,3 @@ type Relationship struct {
 	Type   string
 	Target string
 }
-
-type CombinedResources struct {
-	Source string
-	Data   []ServiceData
-}
-type ServiceData struct {
-	ServiceSource string
-	Data          []interface{}
-}

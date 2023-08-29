@@ -2,9 +2,10 @@ providers:
   - name: openstack
     enabled: true
     api_access:
-      base_url: ""
-      identity_api: "https://api.pub1.infomaniak.cloud/identity/v3/"
-      compute_api: "https://api.pub1.infomaniak.cloud/compute/v2.1/"
+      base_url: "https://api.pub1.infomaniak.cloud/"
+      identity_api: "identity/v3/"
+      compute_api: "compute/v2.1/"
+      storage_api: "volume/v3/"
     credentials:
       os_auth_type: "app-credentials"
       app_credentials_id: "d4ac29bc2a0449419754693baa1c9e3f"
@@ -17,12 +18,9 @@ providers:
       compute_api: ""
     credentials:
   - name: kubernetes
-    enabled: false
+    enabled: true
     api_access:
-      base_url: ""
-      identity_api: ""
-      compute_api: ""
-    credentials:
+      base_url: "http://localhost:8001/api/v1/"
 logger:
   formatter: "console"
   level: "debug"

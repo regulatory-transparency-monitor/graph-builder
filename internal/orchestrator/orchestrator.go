@@ -48,19 +48,25 @@ func (o *Orchestrator) Run() error {
 
 		// 4) Store generic data in Neo4j
 		for _, component := range genericData {
-		    if component.Type == "Project" {
-		        err := o.Neo4jRepo.CreateOrUpdateProject(component)
-		        if err != nil {
-		            logger.Error("Error storing project in Neo4j: %v", err)
-		        }
-		    }
+			if component.Type == "Project" {
+				err := o.Neo4jRepo.CreateOrUpdateProject(component)
+				if err != nil {
+					logger.Error("Error storing project in Neo4j: %v", err)
+				}
+			}
 			if component.Type == "Server" {
-		        err := o.Neo4jRepo.CreateOrUpdateServer(component)
-		        if err != nil {
-		            logger.Error("Error storing server in Neo4j: %v", err)
-		        }
-		    }
-		    // TODO: Handle other component types as needed
+				err := o.Neo4jRepo.CreateOrUpdateServer(component)
+				if err != nil {
+					logger.Error("Error storing server in Neo4j: %v", err)
+				}
+			}
+			if component.Type == "Volume" {
+				err := o.Neo4jRepo.CreateOrUpdateVolume(component)
+				if err != nil {
+					logger.Error("Error storing server in Neo4j: %v", err)
+				}
+			}
+			// TODO: Handle other component types as needed
 		}
 	}
 	return nil

@@ -144,31 +144,121 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
 	return err
 }
 
-// CreateOrUpdateVolume creates or updates a Volume Node
-func (r *Neo4jRepository) CreateOrUpdateVolume(project dataparser.InfrastructureComponent) error {
+// CreateOrUpdateVolume creates or updates a volume node in Neo4j based on the generic data model
+func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureComponent) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 
+	// Base MERGE query
 	query := `
-    MERGE (s:Server {ID: $id})
-    ON CREATE SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
-    ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone
+    MERGE (v:Volume {ID: $id})
+    ON CREATE SET 
+        v.Name = $name,
+        v.Type = $type,
+        v.AvailabilityZone = $availabilityZone
     `
 
+	// Construct ON CREATE and ON MATCH SET clauses dynamically
+	onCreateSet := "ON CREATE SET v.Name = $name, v.Type = $type, v.AvailabilityZone = $availabilityZone"
+	onMatchSet := "ON MATCH SET v.Name = $name, v.Type = $type, v.AvailabilityZone = $availabilityZone"
+
+	for key := range volume.Metadata {
+		onCreateSet += fmt.Sprintf(", v.%s = $%s", key, key)
+		onMatchSet += fmt.Sprintf(", v.%s = $%s", key, key)
+	}
+
+	query += "\n" + onCreateSet + "\n" + onMatchSet
+
 	parameters := map[string]interface{}{
-		"id":               project.ID,
-		"name":             project.Name,
-		"type":             project.Type,
-		"availabilityZone": project.AvailabilityZone,
-		"metadata":         project.Metadata,
+		"id":               volume.ID,
+		"name":             volume.Name,
+		"type":             volume.Type,
+		"availabilityZone": volume.AvailabilityZone,
+	}
+
+	// Add metadata to parameters
+	for key, value := range volume.Metadata {
+		parameters[key] = value
+	}
+
+	_, err = session.Run(query, parameters)
+	if err != nil {
+		logger.Error("Error creating volume in Neo4j", err)
+	} else {
+		logger.Debug("Created volume in Neo4j", logger.LogFields{"volume_id": volume.ID})
+
+		// Handle relationships
+		for _, rel := range volume.Relationships {
+			if rel.Type == "AttachedTo" {
+				relationshipQuery := `
+            MATCH (v:Volume {ID: $volumeID}), (s:Server {ID: $serverID})
+            MERGE (v)-[:AttachedTo]->(s)
+            `
+
+				relationshipParameters := map[string]interface{}{
+					"volumeID": volume.ID,
+					"targetID": rel.Target,
+				}
+
+				_, err = session.Run(relationshipQuery, relationshipParameters)
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return err
+}
+
+/* // CreateOrUpdateVolume creates or updates a Volume Node
+func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	// Define the MERGE query
+	query := `
+    MERGE (v:Volume {ID: $id})
+    ON CREATE SET v.Name = $name, v.Type = $type, v.AvailabilityZone = $availabilityZone
+    ON MATCH SET v.Name = $name, v.Type = $type, v.AvailabilityZone = $availabilityZone
+    `
+
+	// Define the parameters
+	parameters := map[string]interface{}{
+		"id":               volume.ID,
+		"name":             volume.Name,
+		"type":             volume.Type,
+		"availabilityZone": volume.AvailabilityZone,
+	}
+	// Handle relationships
+	for _, rel := range volume.Relationships {
+		if rel.Type == "AttachedTo" { //  relationship type
+			relationshipQuery := `
+			MATCH (v:Volume {ID: $volumeID}), (s:Server {ID: $targetID})
+			MERGE (v)-[:AttachedTo]->(s)
+			`
+
+			relationshipParameters := map[string]interface{}{
+				"volumeID": volume.ID,
+				"targetID": rel.Target,
+			}
+
+			_, err = session.Run(relationshipQuery, relationshipParameters)
+			if err != nil {
+				return err
+			}
+		}
+
 	}
 
 	_, err = session.Run(query, parameters)
 	return err
-}
+} */
 
 // CreateOrUpdatePod creates or updates a Kubernetes Pod
 func (r *Neo4jRepository) CreateOrUpdatePod(project dataparser.InfrastructureComponent) error {

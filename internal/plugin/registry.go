@@ -1,8 +1,10 @@
 package plugin
 
 import (
+	"github.com/regulatory-transparency-monitor/commons/models"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
-	"github.com/regulatory-transparency-monitor/openstack-provider-plugin/pkg/services"
+	kubernetesServices "github.com/regulatory-transparency-monitor/kubernetes-provider-plugin/pkg/services"
+	openstackServices "github.com/regulatory-transparency-monitor/openstack-provider-plugin/pkg/services"
 	"github.com/spf13/viper"
 )
 
@@ -11,7 +13,7 @@ type Plugin interface {
 	// TODO pass url as parameter
 	Initialize() error
 	// TODO think about returning pointer or value / rename to FetchData
-	Scan() (*services.CombinedResources, error)
+	Scan() (models.CombinedResources, error)
 }
 
 type PluginConstructor func() Plugin
@@ -25,12 +27,12 @@ var PluginRegistry = make(map[string]Plugin)
 // Register Plugin Constructors.
 func InitConstructor() {
 	PluginConstructorRegistry["openstack"] = func() Plugin {
-		return &services.OpenStackPlugin{
-			// TODO pass url as parameter
-			// TODO pass credentials as parameter
-		}
+		return &openstackServices.OpenStackPlugin{}
 	}
 	// TODO add kubernetes plugin
+	PluginConstructorRegistry["kubernetes"] = func() Plugin {
+		return &kubernetesServices.KubernetesPlugin{}
+	}
 }
 
 // Initialize enabled Plugins.

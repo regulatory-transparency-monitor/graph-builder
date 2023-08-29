@@ -12,6 +12,7 @@ type Repository interface {
 	// Create Update Nodes using generic data
 	CreateOrUpdateProject(dataparser.InfrastructureComponent) error
 	CreateOrUpdateServer(dataparser.InfrastructureComponent) error
+	CreateOrUpdateVolume(dataparser.InfrastructureComponent) error
 	// GraphQL logic
 	FindInstanceByUUID(ctx context.Context, uuid string) (*model.Instance, error)
 	FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error)

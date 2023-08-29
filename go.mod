@@ -4,9 +4,12 @@ go 1.19
 
 require (
 	github.com/99designs/gqlgen v0.17.36
+	github.com/regulatory-transparency-monitor/kubernetes-provider-plugin v0.0.0-00010101000000-000000000000
 	github.com/regulatory-transparency-monitor/openstack-provider-plugin v0.0.0-00010101000000-000000000000
 	github.com/vektah/gqlparser/v2 v2.5.8
 )
+
+require github.com/regulatory-transparency-monitor/commons v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -36,7 +39,7 @@ require (
 	github.com/go-errors/errors v1.4.2
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0 // indirect
-	github.com/hashicorp/golang-lru/v2 v2.0.5 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.6 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/neo4j/neo4j-go-driver v1.8.3
 	github.com/sirupsen/logrus v1.9.3
@@ -45,3 +48,7 @@ require (
 )
 
 replace github.com/regulatory-transparency-monitor/openstack-provider-plugin => ../openstack-provider-plugin
+
+replace github.com/regulatory-transparency-monitor/commons => ../commons
+
+replace github.com/regulatory-transparency-monitor/kubernetes-provider-plugin => ../kubernetes-provider-plugin

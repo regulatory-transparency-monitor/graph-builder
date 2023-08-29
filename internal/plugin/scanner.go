@@ -1,20 +1,20 @@
 package plugin
 
 import (
+	"github.com/regulatory-transparency-monitor/commons/models"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
-	"github.com/regulatory-transparency-monitor/openstack-provider-plugin/pkg/services"
 	"github.com/spf13/viper"
 )
 
 // Fetch data from all enabled plugins.
-func Scanner(pluginInstance Plugin) services.CombinedResources {
+func Scanner(pluginInstance Plugin) models.CombinedResources {
 	d, err := pluginInstance.Scan()
 	if err != nil {
 		logger.Error("Error scanning plugin %v", err)
 	}
 	//logger.Info("Data: %v", logger.LogFields{"Provider Plugin response": d.Data})
 	logger.Debug("Fetching data ... ")
-	return *d
+	return d
 }
 
 func MapURL() map[string]string {
@@ -31,7 +31,7 @@ func MapURL() map[string]string {
 		for key, value := range apiAccess {
 			// Ensure the value is a string before adding to the map
 			if strValue, valid := value.(string); valid {
-				apiMap[key] = strValue 
+				apiMap[key] = strValue
 			}
 		}
 	}
