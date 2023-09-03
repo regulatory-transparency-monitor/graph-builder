@@ -101,30 +101,6 @@ func (r *Neo4jRepository) CreateUUIDConstraints(label string) error {
 	return nil
 }
 
-// CreateMetadataNode creates a new Metadata node with the provided version and timestamp
-func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) error {
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return fmt.Errorf("error creating Neo4j session: %v", err)
-	}
-	defer session.Close()
-
-	query := `
-		CREATE (m:Metadata {Version: $version, ScanTimestamp: $timestamp})
-	`
-
-	parameters := map[string]interface{}{
-		"version":   version,
-		"timestamp": timestamp,
-	}
-
-	_, err = session.Run(query, parameters)
-	if err != nil {
-		return fmt.Errorf("error creating Metadata node in Neo4j with query: %s, %v", query, err)
-	}
-	return nil
-}
-
 // GetLatestVersion retrieves the latest version from the Metadata node
 func (r *Neo4jRepository) GetLatestVersion() (string, error) {
 	session, err := r.Connection.Session(neo4j.AccessModeRead)
@@ -156,6 +132,282 @@ func (r *Neo4jRepository) GetLatestVersion() (string, error) {
 	return "", fmt.Errorf("no metadata nodes found in the database")
 }
 
+// CreateMetadataNode creates a new Metadata node with the provided version and timestamp
+func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return fmt.Errorf("error creating Neo4j session: %v", err)
+	}
+	defer session.Close()
+
+	query := `
+		CREATE (m:Metadata {Version: $version, ScanTimestamp: $timestamp})
+	`
+
+	parameters := map[string]interface{}{
+		"version":   version,
+		"timestamp": timestamp,
+	}
+
+	_, err = session.Run(query, parameters)
+	if err != nil {
+		return fmt.Errorf("error creating Metadata node in Neo4j with query: %s, %v", query, err)
+	}
+	return nil
+}
+
+// CreateProject always creates a new project node and returns its UUID
+func (r *Neo4jRepository) CreateProjectNode(project dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CREATE (p:Project {
+		uuid: apoc.create.uuid(), 
+		id: $id,
+		name: $name, 
+		type: $type, 
+		availabilityZone: $availabilityZone, 
+		enabled: $enabled, 
+		description: $description
+	})
+	RETURN p.uuid as uuid
+    `
+
+	parameters := map[string]interface{}{
+		"id":               project.ID,
+		"name":             project.Name,
+		"type":             project.Type,
+		"availabilityZone": project.AvailabilityZone,
+		"description":      GetMetadataValue(project.Metadata, "Description", ""),
+		"enabled":          GetMetadataValue(project.Metadata, "Enabled", false),
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating Project node: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// CreateServer always creates a new server node
+func (r *Neo4jRepository) CreateServerNode(server dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CREATE (s:Server {
+		uuid: apoc.create.uuid(), 
+		id: $id,
+		name: $name,
+		type: $type,
+		availabilityZone: $availabilityZone,
+		userID: $userID,
+		hostID: $hostID,
+		tenantID: $tenantID,
+		created: $created,
+		updated: $updated,
+		volumesAttached: $volumesAttached,
+		status: $status
+	})
+	RETURN s.uuid as uuid
+	`
+
+	parameters := map[string]interface{}{
+		"id":               server.ID,
+		"name":             server.Name,
+		"type":             server.Type,
+		"availabilityZone": server.AvailabilityZone,
+		"userID":           GetMetadataValue(server.Metadata, "UserID", ""),
+		"hostID":           GetMetadataValue(server.Metadata, "HostID", ""),
+		"tenantID":         GetMetadataValue(server.Metadata, "TenantID", ""),
+		"created":          GetMetadataValue(server.Metadata, "Created", ""),
+		"updated":          GetMetadataValue(server.Metadata, "Updated", ""),
+		"volumesAttached":  GetMetadataValue(server.Metadata, "VolumesAttached", ""),
+		"status":           GetMetadataValue(server.Metadata, "Status", ""),
+	}
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating server node: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// CreateVolumeNode always creates a new volume node and returns its UUID
+func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CREATE (v:Volume {
+		uuid: apoc.create.uuid(),
+		id: $id,
+		name: $name,
+		type: $type,
+		availabilityZone: $availabilityZone,
+		status: $status,
+		size: $size,
+		bootable: $bootable,
+		encrypted: $encrypted,
+		multiattach: $multiattach,
+		device: $device
+	})
+	RETURN v.uuid as uuid
+	`
+
+	parameters := map[string]interface{}{
+		"id":               volume.ID,
+		"name":             volume.Name,
+		"type":             volume.Type,
+		"availabilityZone": volume.AvailabilityZone,
+		"status":           volume.Metadata["status"],
+		"size":             volume.Metadata["size"],
+		"bootable":         volume.Metadata["bootable"],
+		"encrypted":        volume.Metadata["encrypted"],
+		"multiattach":      volume.Metadata["multiattach"],
+		"device":           volume.Metadata["device"],
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating Volume node: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("failed to retrieve UUID for volume: %s", volume.ID)
+}
+
+// CreateClusterNode always creates a new clusterNode and returns its UUID
+func (r *Neo4jRepository) CreateClusterNode(clusterNode dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	// Define the CREATE query
+	query := `
+    CREATE (n:ClusterNode {
+		uuid: apoc.create.uuid(), 
+		id: $id,
+		name: $name,
+		type: $type,
+		createdAt: $createdAt
+	})
+	RETURN n.uuid as uuid
+    `
+
+	// Define the parameters
+	parameters := map[string]interface{}{
+		"id":        clusterNode.ID,
+		"name":      clusterNode.Name,
+		"type":      clusterNode.Type,
+		"createdAt": clusterNode.Metadata["CreatedAt"], // assuming createdAt exists in the Metadata
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating ClusterNode: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// CreatePod always creates a new pod and returns its UUID
+func (r *Neo4jRepository) CreatePodNode(pod dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	// Define the CREATE query
+	query := `
+    CREATE (p:Pod {
+		uuid: apoc.create.uuid(), 
+		id: $id,
+		name: $name,
+		type: $type,
+		createdAt: $createdAt
+	})
+	RETURN p.uuid as uuid
+    `
+
+	// Define the parameters
+	parameters := map[string]interface{}{
+		"id":        pod.ID,
+		"name":      pod.Name,
+		"type":      pod.Type,
+		"createdAt": pod.Metadata["CreatedAt"], // assuming createdAt exists in the Metadata
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating Pod: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
 func (r *Neo4jRepository) LinkResourceToMetadata(version string, projectUUID string) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
@@ -185,51 +437,133 @@ func (r *Neo4jRepository) LinkResourceToMetadata(version string, projectUUID str
 	return nil
 }
 
-// CreateOrUpdateProject creates or updates a  project node
-func (r *Neo4jRepository) CreateOrUpdateProject(project dataparser.InfrastructureComponent) (uuid string, err error) {
+// LinkVolumeToServer creates a relationship between a volume and attached servers
+func (r *Neo4jRepository) LinkVolumeToServer(volumeUUID string, serverID string) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer session.Close()
 
 	query := `
-    MERGE (p:Project {ID: $id})
-	ON CREATE SET p.uuid = apoc.create.uuid(), p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone, p.Enabled = $enabled, p.Description = $description
-	ON MATCH SET p.Name = $name, p.Type = $type, p.AvailabilityZone = $availabilityZone, p.Enabled = $enabled, p.Description = $description 
-	RETURN p.uuid as uuid
+    MATCH (v:Volume {uuid: $volumeUUID}), (s:Server {id: $serverID})
+    MERGE (v)-[:AttachedTo]->(s)
     `
 
 	parameters := map[string]interface{}{
-		"id":               project.ID,
-		"name":             project.Name,
-		"type":             project.Type,
-		"availabilityZone": project.AvailabilityZone,
-		"description":      GetMetadataValue(project.Metadata, "Description", ""),
-		"enabled":          GetMetadataValue(project.Metadata, "Enabled", false),
+		"volumeUUID": volumeUUID,
+		"serverID":   serverID,
 	}
 
-	result, err := session.Run(query, parameters)
+	_, err = session.Run(query, parameters)
 	if err != nil {
-		return "", fmt.Errorf("error creating Project node: %s, %v", query, err)
+		return fmt.Errorf("error creating AttachedTo relationship: %s, %v", query, err)
 	}
 
-	if result.Next() {
-		rawUUID, ok := result.Record().Get("uuid")
-		logger.Debug("rawUUID", logger.LogFields{"rawUUID": rawUUID})
-		if ok && rawUUID != nil {
-			uuidStr, ok := rawUUID.(string)
-			logger.Debug("uuidStr", logger.LogFields{"uuidStr": uuidStr})
-			if ok {
-				logger.Debug("created project node in Neo4j", logger.LogFields{"project_id": project.ID, "uuid": uuidStr})
-				return uuidStr, nil
-			}
-		}
-	}
-
-	return "", fmt.Errorf("failed to retrieve UUID for project: %s", project.ID)
+	return nil
 }
 
+func (r *Neo4jRepository) LinkServerToProject(serverUUID string, projectID string) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+    MATCH (s:Server {uuid: $serverUUID}), (p:Project {id: $projectID})
+    MERGE (s)-[:BelongsTo]->(p)
+    `
+
+	parameters := map[string]interface{}{
+		"serverUUID": serverUUID,
+		"projectID":  projectID,
+	}
+
+	_, err = session.Run(query, parameters)
+	if err != nil {
+		return fmt.Errorf("error creating BelongsTo relationship: %s, %v", query, err)
+	}
+
+	return nil
+}
+
+
+// CreateOrUpdateVolume creates or updates a Volume Node
+func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureComponent) error {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
+
+	query := `
+		MERGE (v:Volume {ID: $id})
+		ON CREATE SET 
+			v.Name = $name,
+			v.Type = $type,
+			v.AvailabilityZone = $availabilityZone,
+			v.Status = $status,
+			v.Size = $size,
+			v.Bootable = $bootable,
+			v.Encrypted = $encrypted,
+			v.Multiattach = $multiattach,
+			v.Device = $device
+			
+		ON MATCH SET 
+			v.Name = $name,
+			v.Type = $type,
+			v.AvailabilityZone = $availabilityZone,
+			v.Status = $status,
+			v.Size = $size,
+			v.Bootable = $bootable,
+			v.Encrypted = $encrypted,
+			v.Multiattach = $multiattach,
+			v.Device = $device
+		`
+
+	parameters := map[string]interface{}{
+		"id":               volume.ID,
+		"name":             volume.Name,
+		"type":             volume.Type,
+		"availabilityZone": volume.AvailabilityZone,
+		"status":           volume.Metadata["status"], // assuming status exists in the metadata
+		"size":             volume.Metadata["size"],
+		"bootable":         volume.Metadata["bootable"],
+		"encrypted":        volume.Metadata["encrypted"],
+		"multiattach":      volume.Metadata["multiattach"],
+		"device":           volume.Metadata["device"],
+	}
+
+	// Handle relationships
+	for _, rel := range volume.Relationships {
+		if rel.Type == "AttachedTo" { //  relationship type
+			relationshipQuery := `
+			MATCH (v:Volume {ID: $volumeID}), (s:Server {ID: $targetID})
+			MERGE (v)-[:AttachedTo]->(s)
+			`
+
+			relationshipParameters := map[string]interface{}{
+				"volumeID": volume.ID,
+				"targetID": rel.Target,
+			}
+
+			_, err = session.Run(relationshipQuery, relationshipParameters)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
+	_, err = session.Run(query, parameters)
+	if err != nil {
+		logger.Error("Error creating Volume in Neo4j", err)
+	} else {
+		logger.Debug("Created volume in Neo4j", logger.LogFields{"volume_id": volume.ID})
+	}
+	return err
+}
 // CreateOrUpdateServer creates or updates a server node
 func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureComponent) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
@@ -325,82 +659,6 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
 
 	}
 	return nil
-}
-
-// CreateOrUpdateVolume creates or updates a Volume Node
-func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureComponent) error {
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	query := `
-		MERGE (v:Volume {ID: $id})
-		ON CREATE SET 
-			v.Name = $name,
-			v.Type = $type,
-			v.AvailabilityZone = $availabilityZone,
-			v.Status = $status,
-			v.Size = $size,
-			v.Bootable = $bootable,
-			v.Encrypted = $encrypted,
-			v.Multiattach = $multiattach,
-			v.Device = $device
-			
-		ON MATCH SET 
-			v.Name = $name,
-			v.Type = $type,
-			v.AvailabilityZone = $availabilityZone,
-			v.Status = $status,
-			v.Size = $size,
-			v.Bootable = $bootable,
-			v.Encrypted = $encrypted,
-			v.Multiattach = $multiattach,
-			v.Device = $device
-		`
-
-	parameters := map[string]interface{}{
-		"id":               volume.ID,
-		"name":             volume.Name,
-		"type":             volume.Type,
-		"availabilityZone": volume.AvailabilityZone,
-		"status":           volume.Metadata["status"], // assuming status exists in the metadata
-		"size":             volume.Metadata["size"],
-		"bootable":         volume.Metadata["bootable"],
-		"encrypted":        volume.Metadata["encrypted"],
-		"multiattach":      volume.Metadata["multiattach"],
-		"device":           volume.Metadata["device"],
-	}
-
-	// Handle relationships
-	for _, rel := range volume.Relationships {
-		if rel.Type == "AttachedTo" { //  relationship type
-			relationshipQuery := `
-			MATCH (v:Volume {ID: $volumeID}), (s:Server {ID: $targetID})
-			MERGE (v)-[:AttachedTo]->(s)
-			`
-
-			relationshipParameters := map[string]interface{}{
-				"volumeID": volume.ID,
-				"targetID": rel.Target,
-			}
-
-			_, err = session.Run(relationshipQuery, relationshipParameters)
-			if err != nil {
-				return err
-			}
-		}
-
-	}
-
-	_, err = session.Run(query, parameters)
-	if err != nil {
-		logger.Error("Error creating Volume in Neo4j", err)
-	} else {
-		logger.Debug("Created volume in Neo4j", logger.LogFields{"volume_id": volume.ID})
-	}
-	return err
 }
 
 func (r *Neo4jRepository) CreateOrUpdateClusterNode(clusterNode dataparser.InfrastructureComponent) error {

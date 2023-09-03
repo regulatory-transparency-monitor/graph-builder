@@ -56,7 +56,7 @@ func Init() *App {
 	// Instantiate orchestrator
 	tf := dataparser.TransformerRegistry
 	orchestrator := orchestrator.NewOrchestrator(tf, r)
-	err = orchestrator.Run()
+	err = orchestrator.Start()
 	if err != nil {
 		logger.Error("Orchestrator failure: ", err)
 	}

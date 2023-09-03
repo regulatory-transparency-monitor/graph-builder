@@ -75,7 +75,7 @@ func incrementVersion(version string) string {
 	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
 }
 
-func (o *Orchestrator) Run() error {
+func (o *Orchestrator) Start() error {
 
 	// 1) Create the initial version node
 	err := o.Neo4jRepo.SetupUUIDForKnownLabels()
@@ -135,46 +135,52 @@ func (o *Orchestrator) getInfrastructure() error {
 		}
 		logger.Info("Generic data transformed")
 		// 3) Store generic data in Neo4j
-		var projectUUID string
+		//var projectUUID string
 		for _, component := range genericData {
 			switch component.Type {
 			case "Project":
-				projectUUID, err = o.Neo4jRepo.CreateOrUpdateProject(component)
+				projectUUID, err := o.Neo4jRepo.CreateProjectNode(component)
 				if err != nil {
 					logger.Error("Error storing project in Neo4j: %v", err)
 				}
+				err = o.Neo4jRepo.LinkResourceToMetadata(o.CurrentVersion, projectUUID)
+				if err != nil {
+					logger.Error("Failed to link resource to metadata: %v", err)
+				}
 				logger.Debug("Project UUID after creating node in orchestrator: ", logger.LogFields{"uuid": projectUUID})
 			case "Server":
-				err := o.Neo4jRepo.CreateOrUpdateServer(component)
+				serverUUID, err := o.Neo4jRepo.CreateServerNode(component)
 				if err != nil {
 					logger.Error("Error storing server in Neo4j: %v", err)
 				}
+				logger.Debug("Server UUID after creating node in orchestrator: ", logger.LogFields{"uuid": serverUUID})
 			case "Volume":
-				err := o.Neo4jRepo.CreateOrUpdateVolume(component)
+				volumeUUID, err := o.Neo4jRepo.CreateVolumeNode(component)
 				if err != nil {
 					logger.Error("Error storing volume in Neo4j: %v", err)
 				}
+				logger.Debug("Volume UUID after creating node in orchestrator: ", logger.LogFields{"uuid": volumeUUID})
 			case "ClusterNode":
-				err := o.Neo4jRepo.CreateOrUpdateClusterNode(component)
+				clusterNodeUUID, err := o.Neo4jRepo.CreateClusterNode(component)
 				if err != nil {
 					logger.Error("Error storing clusterNode in Neo4j: %v", err)
 				}
+				logger.Debug("ClusterNode UUID after creating node in orchestrator: ", logger.LogFields{"uuid": clusterNodeUUID})
 			case "Pod":
-				err := o.Neo4jRepo.CreateOrUpdatePod(component)
+				podUUID, err := o.Neo4jRepo.CreatePodNode(component)
 				if err != nil {
 					logger.Error("Error storing pod in Neo4j: %v", err)
 				}
+				logger.Debug("Pod UUID after creating node in orchestrator: ", logger.LogFields{"uuid": podUUID})
 
 			}
 
 		}
-		err = o.Neo4jRepo.LinkResourceToMetadata(o.CurrentVersion, projectUUID)
-		if err != nil {
-			logger.Error("Failed to link resource to metadata: %v", err)
-		}
-		logger.Info("*** Generic data stored in Neo4j ***")
+
+		logger.Debug("Generic data stored in Neo4j: ", logger.LogFields{"provider plugin": providerType})
 
 	}
+	logger.Info("*** Generic data storring in Neo4j finsihed for all plugins ***")
 
 	return nil
 }
