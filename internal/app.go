@@ -13,8 +13,6 @@ import (
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/generated"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/orchestrator"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/plugin"
-
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
 	service "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
@@ -24,8 +22,9 @@ import (
 
 // App main application object
 type App struct {
-	Router  *mux.Router
-	Service service.Service
+	Router       *mux.Router
+	Service      *service.Service
+	Orchestrator *orchestrator.Orchestrator
 }
 
 // Init initializes app
@@ -36,13 +35,7 @@ func Init() *App {
 		logger.Fatal("Loading config failure: ", err)
 	}
 
-	// 2) Initialize plugin constructor functions
-	plugin.InitConstructor()
-
-	// 3) Initialize and Register enabled plugins, e.g. openstack, kubernetes
-	plugin.RegisterPlugin()
-
-	// Connect to Neo4j
+	// 2) Connect to Neo4j
 	neo4Conn, err := repository.NewNeo4jConnection()
 	if err != nil {
 		logger.Fatal(err)
@@ -53,16 +46,20 @@ func Init() *App {
 		Connection: neo4Conn,
 	}
 
-	// Instantiate orchestrator
+	// 3) Instantiate Service
+	srv := service.NewService(r)
+
+	// 4) Instantiate orchestrator
 	tf := dataparser.TransformerRegistry
-	orchestrator := orchestrator.NewOrchestrator(tf, r)
-	err = orchestrator.Start()
+	orch := orchestrator.NewOrchestrator(tf, srv)
+	err = orch.Start()
 	if err != nil {
 		logger.Error("Orchestrator failure: ", err)
 	}
 
 	return &App{
-		Service: service.NewService(r),
+		Service:      srv,
+		Orchestrator: orch,
 	}
 }
 

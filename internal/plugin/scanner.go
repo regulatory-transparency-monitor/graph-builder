@@ -7,16 +7,23 @@ import (
 )
 
 // Fetch data from all enabled plugins.
-func Scanner(pluginInstance Plugin) models.RawData {
-	d, err := pluginInstance.Scan()
+func Scanner(pm *PluginManager, pluginName string) models.RawData {
+	pluginInstance, err := pm.GetPlugin(pluginName)
+	if err != nil {
+		logger.Error("Error fetching plugin %v", err)
+		return nil
+	}
+
+	d, err := pluginInstance.FetchData()
 	if err != nil {
 		logger.Error("Error scanning plugin %v", err)
 	}
+	logger.Debug("Data from plugin %s: %v", pluginName, d)
 	return d
 }
 
+// TODO add tor end of req list
 func MapURL() map[string]string {
-	// Initialize an empty map to store the key-value pairs
 	apiMap := make(map[string]string)
 
 	// Retrieve the configuration for the first provider
@@ -27,7 +34,6 @@ func MapURL() map[string]string {
 	if apiAccess, ok := providerConfig["api_access"].(map[string]interface{}); ok {
 		// Loop through the api_access keys and store them in the map
 		for key, value := range apiAccess {
-			// Ensure the value is a string before adding to the map
 			if strValue, valid := value.(string); valid {
 				apiMap[key] = strValue
 			}

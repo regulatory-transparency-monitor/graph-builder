@@ -614,7 +614,7 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
 
 	_, err = session.Run(query, parameters)
 	if err != nil {
-		return fmt.Errorf("Error creating server in Neo4j", err)
+		return fmt.Errorf("error creating Server in Neo4j: %v", err)
 	} else { // if no err create relationship
 		logger.Debug("Created server in Neo4j", logger.LogFields{"server_id": server.ID})
 

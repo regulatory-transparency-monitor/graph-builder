@@ -7,6 +7,6 @@ import service "github.com/regulatory-transparency-monitor/graph-builder/interna
 //
 // It serves as dependency injection for the app, add any dependencies required here.
 
-type Resolver struct{
-	Service service.Service
+type Resolver struct {
+	Service *service.Service
 }

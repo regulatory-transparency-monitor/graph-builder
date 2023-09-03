@@ -2,83 +2,50 @@ package orchestrator
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/plugin"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
+	services "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/versioning"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
-	"github.com/robfig/cron"
 )
 
 type Orchestrator struct {
 	Transformers   map[string]dataparser.Transformer
-	Neo4jRepo      repository.Repository
-	CurrentVersion string
+	Service        *services.Service
+	VersionManager *versioning.VersionManager
+	Scheduler      *Scheduler
+	PluginManager  *plugin.PluginManager
 }
 
-func NewOrchestrator(tf map[string]dataparser.Transformer, repo repository.Repository) *Orchestrator {
-	o := &Orchestrator{
-		Transformers:   tf,
-		Neo4jRepo:      repo,
-		CurrentVersion: "0.0.0", // default
-	}
-	o.initVersioning() // Set the version based on database or initialize it
-	return o
-}
-
-func (o *Orchestrator) initVersioning() {
-	// Try to fetch the latest version from the database
-
-	// If there's an error, it might be because the Metadata node doesn't exist
-	version, err := o.Neo4jRepo.GetLatestVersion()
+func NewOrchestrator(tf map[string]dataparser.Transformer, srv *services.Service) *Orchestrator {
+	version, err := srv.GetLatestVersion()
 	if err != nil {
 		logger.Warning("Couldn't fetch latest version, initializing with version 0.0.1")
-
-		o.CurrentVersion = "0.0.1"
-	} else {
-		o.CurrentVersion = version
+		version = "0.0.1"
 	}
 
-	logger.Info("Initialized with version: ", logger.LogFields{"version": o.CurrentVersion})
-}
+	vm := versioning.NewVersionManager(version)
+	pluginMgr := plugin.NewPluginManager()
+	pluginMgr.RegisterPluginConstructors()
+	pluginMgr.InitializePlugins()
 
-func getCurrentTimeString() string {
-	// Assuming you want a specific time format, like "2006-01-02 15:04:05"
-	return time.Now().Format("2006-01-02 15:04:05")
-}
-
-func (o *Orchestrator) incrementVersion() {
-	o.CurrentVersion = incrementVersion(o.CurrentVersion)
-}
-
-func incrementVersion(version string) string {
-	splitVersion := strings.Split(version, ".")
-	if len(splitVersion) != 3 {
-		logger.Error("Invalid version format: %s", version)
-		return "0.0.0" // default if version format is not as expected
+	o := &Orchestrator{
+		Transformers:   tf,
+		Service:        srv,
+		VersionManager: vm,
+		Scheduler:      NewScheduler(),
+		PluginManager:  pluginMgr,
 	}
 
-	major, err1 := strconv.Atoi(splitVersion[0])
-	minor, err2 := strconv.Atoi(splitVersion[1])
-	patch, err3 := strconv.Atoi(splitVersion[2])
-
-	if err1 != nil || err2 != nil || err3 != nil {
-		logger.Error("Failed to parse version components: ", logger.LogFields{"major": err1, "minor": err2, "patch": err3})
-		return "0.0.0"
-	}
-	// Incrementing only the patch version
-	patch++
-
-	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
+	return o
 }
 
 func (o *Orchestrator) Start() error {
 
 	// 1) Create the initial version node
-	err := o.Neo4jRepo.SetupUUIDForKnownLabels()
+	err := o.Service.SetupUUIDForKnownLabels()
 	if err != nil {
 		logger.Error("Failed to create UUID constraints: %v", err)
 		return err
@@ -107,25 +74,31 @@ func (o *Orchestrator) Start() error {
 
 // PeriodicScan scans the infrastructure periodically using provider plugins
 func (o *Orchestrator) startPeriodicScans() {
-	c := cron.New()
-	c.AddFunc("@every 30s", func() {
-		o.incrementVersion()
+	o.Scheduler.AddTask("@every 30s", func() {
+		o.VersionManager.IncrementVersion()
 		o.getInfrastructure()
 	})
-	c.Start()
+	o.Scheduler.Start()
+}
+
+func getCurrentTimeString() string {
+	// Assuming you want a specific time format, like "2006-01-02 15:04:05"
+	return time.Now().Format("2006-01-02 15:04:05")
 }
 
 func (o *Orchestrator) getInfrastructure() error {
-	err := o.Neo4jRepo.CreateMetadataNode(o.CurrentVersion, getCurrentTimeString())
+	currentVersion := o.VersionManager.GetCurrentVersion()
+	logger.Debug("Current version: ", logger.LogFields{"version": currentVersion})
+	err := o.Service.CreateMetadataNode(currentVersion, getCurrentTimeString())
 	if err != nil {
 		logger.Error("Failed to create metadata node: %v", err)
 		return err
 	}
 
 	// 1) Start scanning resources for each provider plugin enabled
-	for providerType, instance := range plugin.PluginRegistry {
+	for providerType := range o.PluginManager.ActivePlugins {
 		logger.Info("Fetching API services using ", logger.LogFields{"provider plugin": providerType})
-		rawDataMap := plugin.Scanner(instance) // returns map[string][]interface{}
+		rawDataMap := plugin.Scanner(o.PluginManager, providerType)
 		logger.Info("API services fetched successfully")
 		// 2) Transform raw data into generic data using the appropriate transformer
 		genericData, err := dataparser.TransformData(rawDataMap) // Call the TransformData function here
@@ -135,49 +108,21 @@ func (o *Orchestrator) getInfrastructure() error {
 		}
 		logger.Info("Generic data transformed")
 		// 3) Store generic data in Neo4j
-		//var projectUUID string
+
 		for _, component := range genericData {
-			switch component.Type {
-			case "Project":
-				projectUUID, err := o.Neo4jRepo.CreateProjectNode(component)
-				if err != nil {
-					logger.Error("Error storing project in Neo4j: %v", err)
-				}
-				err = o.Neo4jRepo.LinkResourceToMetadata(o.CurrentVersion, projectUUID)
-				if err != nil {
-					logger.Error("Failed to link resource to metadata: %v", err)
-				}
-				logger.Debug("Project UUID after creating node in orchestrator: ", logger.LogFields{"uuid": projectUUID})
-			case "Server":
-				serverUUID, err := o.Neo4jRepo.CreateServerNode(component)
-				if err != nil {
-					logger.Error("Error storing server in Neo4j: %v", err)
-				}
-				logger.Debug("Server UUID after creating node in orchestrator: ", logger.LogFields{"uuid": serverUUID})
-			case "Volume":
-				volumeUUID, err := o.Neo4jRepo.CreateVolumeNode(component)
-				if err != nil {
-					logger.Error("Error storing volume in Neo4j: %v", err)
-				}
-				logger.Debug("Volume UUID after creating node in orchestrator: ", logger.LogFields{"uuid": volumeUUID})
-			case "ClusterNode":
-				clusterNodeUUID, err := o.Neo4jRepo.CreateClusterNode(component)
-				if err != nil {
-					logger.Error("Error storing clusterNode in Neo4j: %v", err)
-				}
-				logger.Debug("ClusterNode UUID after creating node in orchestrator: ", logger.LogFields{"uuid": clusterNodeUUID})
-			case "Pod":
-				podUUID, err := o.Neo4jRepo.CreatePodNode(component)
-				if err != nil {
-					logger.Error("Error storing pod in Neo4j: %v", err)
-				}
-				logger.Debug("Pod UUID after creating node in orchestrator: ", logger.LogFields{"uuid": podUUID})
-
+			uuid, err := o.Service.CreateInfrastructureComponent(component)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Error storing %s in Neo4j: %v", component.Type, err))
+				continue
 			}
-
+			logger.Debug(fmt.Sprintf("%s UUID after creating node in orchestrator: ", component.Type), logger.LogFields{"uuid": uuid})
+			if component.Type == "Project" {
+				err = o.Service.LinkResourceToMetadata(currentVersion, uuid)
+				if err != nil {
+					logger.Error("Failed to link project to metadata: %v", err)
+				}
+			}
 		}
-
-		logger.Debug("Generic data stored in Neo4j: ", logger.LogFields{"provider plugin": providerType})
 
 	}
 	logger.Info("*** Generic data storring in Neo4j finsihed for all plugins ***")
