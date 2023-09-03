@@ -7,13 +7,11 @@ import (
 )
 
 // Fetch data from all enabled plugins.
-func Scanner(pluginInstance Plugin) models.CombinedResources {
+func Scanner(pluginInstance Plugin) models.RawData {
 	d, err := pluginInstance.Scan()
 	if err != nil {
 		logger.Error("Error scanning plugin %v", err)
 	}
-	//logger.Info("Data: %v", logger.LogFields{"Provider Plugin response": d.Data})
-	logger.Debug("Fetching data ... ")
 	return d
 }
 

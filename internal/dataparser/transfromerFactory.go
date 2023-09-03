@@ -2,132 +2,90 @@ package dataparser
 
 import (
 	"fmt"
-	"reflect"
+	"strings"
 
 	shared "github.com/regulatory-transparency-monitor/commons/models"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
+	m "github.com/regulatory-transparency-monitor/kubernetes-provider-plugin/pkg/models"
 	"github.com/regulatory-transparency-monitor/openstack-provider-plugin/pkg/models"
 )
 
-type TransformerFactory interface {
-	GetTransformer(pluginType string) Transformer
-}
+var TransformerRegistry = make(map[string]Transformer)
 
-type DefaultTransformerFactory struct{}
+func init() {
+	TransformerRegistry["os"] = &OpenStackTransformer{}
+	TransformerRegistry["k8s"] = &KubernetesTransformer{}
+}
 
 type OpenStackTransformer struct{}
-
 type KubernetesTransformer struct{}
+type DefaultTransformerFactory struct{}
 
-const (
-	ServiceSourceIdentity = "identity"
-	ServiceSourceCompute  = "compute"
-	ServiceSourceVolume   = "volume"
-	ServiceSourceWorkload = "workload"
-	ServiceSourceCluster  = "cluster"
-)
-
-// TransformerFactory returns a Transformer based on the provider type of the plugin.
-func (d *DefaultTransformerFactory) GetTransformer(pluginType string) Transformer {
-	switch pluginType {
-	case "openstack":
-		return &OpenStackTransformer{}
-	case "kubernetes":
-		return &KubernetesTransformer{}
-	// ... other cases
-	default:
-		return nil
-	}
-}
-
-// Transformer is an interface that defines the Transform method for openstack resources.
-func (o *OpenStackTransformer) Transform(rawData interface{}) ([]InfrastructureComponent, error) {
-
-	// Transformation logic specific to OpenStack.
-
-	typeName := reflect.TypeOf(rawData).String()
-	logger.Info("Type of rawData:", typeName)
-
-	// 1. Type Assertion
-	openstackData, ok := rawData.(shared.CombinedResources) // Assuming this is the expected type
-	if !ok {
-		return nil, fmt.Errorf("unexpected data type for OpenStack transformation")
-	}
-
-	// 2. Initialize Output
+func TransformData(rawData shared.RawData) ([]InfrastructureComponent, error) {
 	var components []InfrastructureComponent
 
-	// 3. Loop Through Raw Data and Transform
-	for _, resource := range openstackData.Data {
-		component := transformResourceToComponent(resource)
-		//	logger.Debug("Transformed: ", logger.LogFields{"resulting in ": component})
-		components = append(components, component...)
+	for key, dataList := range rawData {
+		prefix := getPrefix(key) // e.g., "os" from "os_instance" / "aws" from "aws_instance"
+		transformer := TransformerRegistry[prefix]
+
+		if transformer == nil {
+			logger.Warning(logger.LogFields{"error": "No transformer found for key:", "key": key})
+			continue
+		}
+
+		transformedData, err := transformer.Transform(key, dataList)
+		if err != nil {
+			logger.Error(logger.LogFields{"error": "transforming data for:", "key": key})
+			continue
+		}
+		components = append(components, transformedData...)
 	}
 
-	// 4. Handle Relationships (if necessary)
-
-	// 5 & 6. Return
 	return components, nil
+}
+
+func getPrefix(key string) string {
+	parts := strings.Split(key, "_")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return ""
+}
+
+func (o *OpenStackTransformer) Transform(key string, data []interface{}) ([]InfrastructureComponent, error) {
+	switch key {
+	case "os_project":
+		return handleProject(data), nil
+	case "os_instace":
+		return handleCompute(data), nil
+	case "os_volume":
+		return handleVolume(data), nil
+	// ... other cases
+	default:
+		return nil, fmt.Errorf("unknown key for OpenStack: %s", key)
+	}
 }
 
 // Transformer for Kubernetes
-func (k *KubernetesTransformer) Transform(rawData interface{}) ([]InfrastructureComponent, error) {
-	// Transformation logic specific to Kubernetes.
-
-	typeName := reflect.TypeOf(rawData).String()
-	logger.Info("Type of Kubernetes rawData:", typeName)
-
-	// 1. Type Assertion
-	kubernetesData, ok := rawData.(shared.CombinedResources) // Assuming this is the expected type
-	if !ok {
-		return nil, fmt.Errorf("unexpected data type for Kubernetes transformation")
-	}
-
-	// 2. Initialize Output
-	var components []InfrastructureComponent
-
-	// 3. Loop Through Raw Data and Transform
-	for _, resource := range kubernetesData.Data {
-		component := transformResourceToComponent(resource)
-		//	logger.Debug("Transformed: ", logger.LogFields{"resulting in ": component})
-		components = append(components, component...)
-	}
-
-	// 4. Handle Relationships (if necessary)
-
-	// 5 & 6. Return
-	return components, nil
-
-}
-
-// look at the serviceSoruce
-func transformResourceToComponent(data shared.ServiceData) []InfrastructureComponent {
-	var components []InfrastructureComponent
-
-	switch data.ServiceSource {
-	case ServiceSourceIdentity:
-		components = handleIdentity(data)
-	case ServiceSourceCompute:
-		components = handleCompute(data)
-	case ServiceSourceVolume:
-		components = handleVolume(data)
-	case ServiceSourceCluster:
-		components = handleCluster(data)
+func (k *KubernetesTransformer) Transform(key string, data []interface{}) ([]InfrastructureComponent, error) {
+	switch key {
+	case "k8s_node":
+		return handleNode(data), nil
+	case "k8s_pod":
+		return hanldePod(data), nil
+	// ... other cases
 	default:
-		// Handle or log unknown ServiceSource
-		logger.Info("Unknown ServiceSource: ", data.ServiceSource)
+		return nil, fmt.Errorf("unknown key for OpenStack: %s", key)
 	}
 
-	return components
 }
 
-
-
-func handleIdentity(resource shared.ServiceData) []InfrastructureComponent {
+func handleProject(data []interface{}) []InfrastructureComponent {
 	var components []InfrastructureComponent
-	for _, data := range resource.Data {
-		project, ok := data.(models.ProjectDetails)
+	for _, data := range data {
+		project, ok := data.(*models.ProjectDetails)
 		if !ok {
+			fmt.Printf("Expected type models.ProjectDetails, but got: %T\n", data)
 			continue
 		}
 		component := InfrastructureComponent{
@@ -144,36 +102,31 @@ func handleIdentity(resource shared.ServiceData) []InfrastructureComponent {
 	return components
 }
 
-func handleCluster(resource shared.ServiceData) []InfrastructureComponent {
+func handleCompute(data []interface{}) []InfrastructureComponent {
 	var components []InfrastructureComponent
-	/* for _, data := range resource.Data {
-		// TODO kubePlugin models
-		cluster, ok := data.(models.Cluster)
-		if !ok {
-			continue
-		}
-		component := InfrastructureComponent{
-			ID:   cluster.ID,
-			Name: cluster.Name,
-			Type: "Cluster",
-			Metadata: map[string]interface{}{
-				"Description": cluster.Description,
-				"Enabled":     cluster.Enabled,
-			},
-		}
-		components = append(components, component)
-	} */
-	return components
-}
+	for _, data := range data {
 
-func handleCompute(resource shared.ServiceData) []InfrastructureComponent {
-	var components []InfrastructureComponent
-	for _, data := range resource.Data {
 		serverDetails, ok := data.(models.ServerDetails)
 		if !ok {
+			fmt.Printf("Expected type models.ServerDetails, but got: %T\n", data)
 			continue
 		}
 		server := serverDetails.Server // Accessing the Server field of the ServerDetails struct
+		volumeIDs := extractVolumeIDs(server.VolumesAttached)
+
+		var relationships []Relationship
+		relationships = append(relationships, Relationship{
+			Type:   "BelongsTo",
+			Target: server.TenantID, // point to the project
+		})
+
+		for _, volumeID := range volumeIDs {
+			relationships = append(relationships, Relationship{
+				Type:   "AttachedTo",
+				Target: volumeID, // point to the volumes
+			})
+		}
+
 		component := InfrastructureComponent{
 			ID:               server.ID,
 			Name:             server.Name,
@@ -186,27 +139,35 @@ func handleCompute(resource shared.ServiceData) []InfrastructureComponent {
 				"HostID":          server.HostID,
 				"Created":         server.Created,
 				"Updated":         server.Updated,
-				"VolumesAttached": server.VolumesAttached,
+				"VolumesAttached": volumeIDs,
 			},
-			Relationships: []Relationship{
-				{
-					Type:   "BelongsTo",
-					Target: server.TenantID, // pointing to the project
-				},
-			},
+			Relationships: relationships,
 		}
 		components = append(components, component)
 	}
 	return components
 }
 
-func handleVolume(resource shared.ServiceData) []InfrastructureComponent {
+// Helper function to extract volume IDs
+func extractVolumeIDs(volumesAttached []interface{}) []string {
+	var ids []string
+	for _, volume := range volumesAttached {
+		if vMap, ok := volume.(map[string]interface{}); ok {
+			if id, ok := vMap["id"].(string); ok {
+				ids = append(ids, id)
+			}
+		}
+	}
+	return ids
+}
+
+func handleVolume(data []interface{}) []InfrastructureComponent {
 	var components []InfrastructureComponent
 
-	for _, data := range resource.Data {
-		volume, ok := data.(models.Volume)
+	for _, data := range data {
+		volume, ok := data.(*models.Volume)
 		if !ok {
-			fmt.Println("Error converting data to Volume")
+			fmt.Printf("Expected type models.Volume, but got: %T\n", data)
 			continue
 		}
 		component := transformVolumeToComponent(volume)
@@ -218,7 +179,7 @@ func handleVolume(resource shared.ServiceData) []InfrastructureComponent {
 	return components
 }
 
-func transformVolumeToComponent(volume models.Volume) *InfrastructureComponent {
+func transformVolumeToComponent(volume *models.Volume) *InfrastructureComponent {
 	metadata := make(map[string]interface{})
 
 	// Handle attachments
@@ -263,4 +224,60 @@ func transformVolumeToComponent(volume models.Volume) *InfrastructureComponent {
 			},
 		},
 	}
+}
+
+func handleNode(data []interface{}) []InfrastructureComponent {
+	var components []InfrastructureComponent
+	for _, data := range data {
+		nodeList, ok := data.(*m.NodeList)
+		if !ok {
+			fmt.Printf("Expected type m.NodeList, but got: %T\n", data)
+			continue
+		}
+		nodes := nodeList.Items // Accessing the Server field of the ServerDetails struct
+		for _, node := range nodes {
+			component := InfrastructureComponent{
+				ID:   node.Metadata.UID,
+				Name: node.Metadata.Name,
+				Type: "ClusterNode",
+				Metadata: map[string]interface{}{
+					"CreatedAt": node.Metadata.CreationTimestamp,
+				},
+			}
+			components = append(components, component)
+		}
+	}
+	return components
+}
+
+func hanldePod(data []interface{}) []InfrastructureComponent {
+	var components []InfrastructureComponent
+	for _, data := range data {
+		podList, ok := data.(*m.PodList)
+		if !ok {
+			fmt.Printf("Expected type m.PodList, but got: %T\n", data)
+			continue
+		}
+		pods := podList.Items // Accessing the Server field of the ServerDetails struct
+		for _, pod := range pods {
+			//fmt.Printf("node: %v\n", node)
+
+			component := InfrastructureComponent{
+				ID:   pod.Metadata.UID,
+				Name: pod.Metadata.Name,
+				Type: "Pod",
+				Metadata: map[string]interface{}{
+					"CreatedAt": pod.Metadata.CreationTime,
+				},
+				Relationships: []Relationship{
+					{
+						Type:   "RunsOn",
+						Target: pod.Spec.NodeName,
+					},
+				},
+			}
+			components = append(components, component)
+		}
+	}
+	return components
 }

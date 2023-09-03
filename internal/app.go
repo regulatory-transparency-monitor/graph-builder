@@ -13,6 +13,7 @@ import (
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/generated"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/orchestrator"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/plugin"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
 	service "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
@@ -35,6 +36,12 @@ func Init() *App {
 		logger.Fatal("Loading config failure: ", err)
 	}
 
+	// 2) Initialize plugin constructor functions
+	plugin.InitConstructor()
+
+	// 3) Initialize and Register enabled plugins, e.g. openstack, kubernetes
+	plugin.RegisterPlugin()
+
 	// Connect to Neo4j
 	neo4Conn, err := repository.NewNeo4jConnection()
 	if err != nil {
@@ -47,7 +54,7 @@ func Init() *App {
 	}
 
 	// Instantiate orchestrator
-	tf := &dataparser.DefaultTransformerFactory{}
+	tf := dataparser.TransformerRegistry
 	orchestrator := orchestrator.NewOrchestrator(tf, r)
 	err = orchestrator.Run()
 	if err != nil {

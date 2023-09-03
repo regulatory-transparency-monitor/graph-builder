@@ -13,7 +13,7 @@ type Plugin interface {
 	// TODO pass url as parameter
 	Initialize() error
 	// TODO think about returning pointer or value / rename to FetchData
-	Scan() (models.CombinedResources, error)
+	Scan() (models.RawData, error)
 }
 
 type PluginConstructor func() Plugin
