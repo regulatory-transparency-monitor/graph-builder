@@ -40,7 +40,7 @@ func (pm *PluginManager) InitializePlugins() error {
 		if p["enabled"].(bool) {
 			pluginConstructor, exists := PluginConstructorRegistry[name]
 			if !exists {
-				fmt.Errorf("Plugin constructor for %s not found in registry", name)
+				fmt.Printf("Plugin %s not found", name)
 				continue
 			}
 			pluginInstance := pluginConstructor()
@@ -60,7 +60,7 @@ func (pm *PluginManager) InitializePlugins() error {
 func (pm *PluginManager) GetPlugin(name string) (Plugin, error) {
 	pluginInstance, exists := pm.ActivePlugins[name]
 	if !exists {
-		fmt.Errorf("Plugin instance for %s not found", name)
+		
 		return nil, fmt.Errorf("Plugin instance for %s not found", name)
 	}
 	return pluginInstance, nil

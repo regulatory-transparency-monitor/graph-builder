@@ -1,6 +1,8 @@
 package plugin
 
 import (
+	"fmt"
+
 	"github.com/regulatory-transparency-monitor/commons/models"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 	"github.com/spf13/viper"
@@ -18,7 +20,8 @@ func Scanner(pm *PluginManager, pluginName string) models.RawData {
 	if err != nil {
 		logger.Error("Error scanning plugin %v", err)
 	}
-	logger.Debug("Data from plugin %s: %v", pluginName, d)
+
+	fmt.Printf("Data from plugin %s: %+v\n", pluginName, d)
 	return d
 }
 

@@ -12,7 +12,7 @@ import (
 	"github.com/regulatory-transparency-monitor/graph-builder/graph"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/generated"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/orchestrator"
+	"github.com/regulatory-transparency-monitor/graph-builder/internal/manager"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
 	service "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
@@ -22,9 +22,9 @@ import (
 
 // App main application object
 type App struct {
-	Router       *mux.Router
-	Service      *service.Service
-	Orchestrator *orchestrator.Orchestrator
+	Router  *mux.Router
+	Service *service.Service
+	Manager *manager.Manager
 }
 
 // Init initializes app
@@ -49,17 +49,17 @@ func Init() *App {
 	// 3) Instantiate Service
 	srv := service.NewService(r)
 
-	// 4) Instantiate orchestrator
+	// 4) Instantiate mngrestrator
 	tf := dataparser.TransformerRegistry
-	orch := orchestrator.NewOrchestrator(tf, srv)
-	err = orch.Start()
+	mngr := manager.NewManager(tf, srv)
+	err = mngr.Start()
 	if err != nil {
-		logger.Error("Orchestrator failure: ", err)
+		logger.Error("mngrestrator failure: ", err)
 	}
 
 	return &App{
-		Service:      srv,
-		Orchestrator: orch,
+		Service: srv,
+		Manager: mngr,
 	}
 }
 

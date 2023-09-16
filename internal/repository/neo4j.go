@@ -32,7 +32,7 @@ func NewNeo4jConnection() (neo4j.Driver, error) {
 		return nil, err
 	}
 
-	logger.Info("Connected to Neo4j Server", logger.LogFields{"neo4j_server_uri": target})
+	logger.Info("Connected to Neo4j Server", logger.LogFields{"neo4j_Instance_uri": target})
 
 	return driver, nil
 }
@@ -65,7 +65,7 @@ func (r *Neo4jRepository) GetLabels() ([]string, error) {
 }
 
 func (r *Neo4jRepository) SetupUUIDForKnownLabels() error {
-	labels := []string{"Metadata", "Project", "Server", "Volume", "ClusterNode", "Pod"}
+	labels := []string{"Metadata", "Project", "Instance", "Volume", "ClusterNode", "Pod", "PhysicalHost"}
 
 	for _, label := range labels {
 		if err := r.CreateUUIDConstraints(label); err != nil {
@@ -88,7 +88,7 @@ func (r *Neo4jRepository) CreateUUIDConstraints(label string) error {
 	if err != nil {
 		return fmt.Errorf("error creating UUID constraint for label %s: %v", label, err)
 	}
-	logger.Debug("Created UUID constraints for labels", logger.LogFields{"labels": label})
+	//logger.Debug("Created UUID constraints for labels", logger.LogFields{"labels": label})
 
 	// Install UUID using APOC
 	handlerQuery := fmt.Sprintf("CALL apoc.uuid.install('%s', {addToExistingNodes: true})", label)
@@ -96,7 +96,7 @@ func (r *Neo4jRepository) CreateUUIDConstraints(label string) error {
 	if err != nil {
 		return fmt.Errorf("error installing UUID for label %s using APOC: %v", label, err)
 	}
-	//logger.Debug("Installed UUID for label using APOC", logger.LogFields{"label": label})
+	//	logger.Debug("Installed UUID for label using APOC", logger.LogFields{"label": label})
 
 	return nil
 }
@@ -111,8 +111,8 @@ func (r *Neo4jRepository) GetLatestVersion() (string, error) {
 
 	query := `
         MATCH (m:Metadata)
-        RETURN m.Version AS version
-        ORDER BY m.ScanTimestamp DESC
+        RETURN m.version AS version
+        ORDER BY m.scanTimestamp DESC
         LIMIT 1
     `
 
@@ -141,7 +141,7 @@ func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) e
 	defer session.Close()
 
 	query := `
-		CREATE (m:Metadata {Version: $version, ScanTimestamp: $timestamp})
+		CREATE (m:Metadata {version: $version, scanTimestamp: $timestamp})
 	`
 
 	parameters := map[string]interface{}{
@@ -157,7 +157,7 @@ func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) e
 }
 
 // CreateProject always creates a new project node and returns its UUID
-func (r *Neo4jRepository) CreateProjectNode(project dataparser.InfrastructureComponent) (uuid string, err error) {
+func (r *Neo4jRepository) CreateProjectNode(version string, project dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return "", err
@@ -167,6 +167,7 @@ func (r *Neo4jRepository) CreateProjectNode(project dataparser.InfrastructureCom
 	query := `
     CREATE (p:Project {
 		uuid: apoc.create.uuid(), 
+		version: $version,
 		id: $id,
 		name: $name, 
 		type: $type, 
@@ -178,6 +179,7 @@ func (r *Neo4jRepository) CreateProjectNode(project dataparser.InfrastructureCom
     `
 
 	parameters := map[string]interface{}{
+		"version":          version,
 		"id":               project.ID,
 		"name":             project.Name,
 		"type":             project.Type,
@@ -204,8 +206,8 @@ func (r *Neo4jRepository) CreateProjectNode(project dataparser.InfrastructureCom
 	return "", nil
 }
 
-// CreateServer always creates a new server node
-func (r *Neo4jRepository) CreateServerNode(server dataparser.InfrastructureComponent) (uuid string, err error) {
+// CreateInstance always creates a new instance node
+func (r *Neo4jRepository) CreateInstanceNode(version string, instance dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return "", err
@@ -213,8 +215,9 @@ func (r *Neo4jRepository) CreateServerNode(server dataparser.InfrastructureCompo
 	defer session.Close()
 
 	query := `
-    CREATE (s:Server {
+    CREATE (i:Instance {
 		uuid: apoc.create.uuid(), 
+		version: $version,
 		id: $id,
 		name: $name,
 		type: $type,
@@ -227,25 +230,27 @@ func (r *Neo4jRepository) CreateServerNode(server dataparser.InfrastructureCompo
 		volumesAttached: $volumesAttached,
 		status: $status
 	})
-	RETURN s.uuid as uuid
+	RETURN i.uuid as uuid
 	`
 
 	parameters := map[string]interface{}{
-		"id":               server.ID,
-		"name":             server.Name,
-		"type":             server.Type,
-		"availabilityZone": server.AvailabilityZone,
-		"userID":           GetMetadataValue(server.Metadata, "UserID", ""),
-		"hostID":           GetMetadataValue(server.Metadata, "HostID", ""),
-		"tenantID":         GetMetadataValue(server.Metadata, "TenantID", ""),
-		"created":          GetMetadataValue(server.Metadata, "Created", ""),
-		"updated":          GetMetadataValue(server.Metadata, "Updated", ""),
-		"volumesAttached":  GetMetadataValue(server.Metadata, "VolumesAttached", ""),
-		"status":           GetMetadataValue(server.Metadata, "Status", ""),
+		"version":          version,
+		"id":               instance.ID,
+		"name":             instance.Name,
+		"type":             instance.Type,
+		"availabilityZone": instance.AvailabilityZone,
+		"userID":           GetMetadataValue(instance.Metadata, "UserID", ""),
+		"hostID":           GetMetadataValue(instance.Metadata, "HostID", ""),
+		"tenantID":         GetMetadataValue(instance.Metadata, "TenantID", ""),
+		"created":          GetMetadataValue(instance.Metadata, "Created", ""),
+		"updated":          GetMetadataValue(instance.Metadata, "Updated", ""),
+		"volumesAttached":  GetMetadataValue(instance.Metadata, "VolumesAttached", ""),
+		"status":           GetMetadataValue(instance.Metadata, "Status", ""),
 	}
+
 	result, err := session.Run(query, parameters)
 	if err != nil {
-		return "", fmt.Errorf("error creating server node: %s, %v", query, err)
+		return "", fmt.Errorf("error creating instance node: %s, %v", query, err)
 	}
 
 	if result.Next() {
@@ -261,8 +266,44 @@ func (r *Neo4jRepository) CreateServerNode(server dataparser.InfrastructureCompo
 	return "", nil
 }
 
+func (r *Neo4jRepository) CreatePhysicalHostNode(version string, host dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CREATE (h:PhysicalHost {
+		uuid: apoc.create.uuid(), 
+		version: $version,
+		id: $id,
+		name: $name,
+		type: $type,
+		availabilityZone: $availabilityZone
+	})
+	RETURN h.uuid as uuid
+	`
+	parameters := map[string]interface{}{
+		"version":          version,
+		"id":               host.ID,
+		"name":             host.Name,
+		"type":             host.Type,
+		"availabilityZone": host.AvailabilityZone,
+	}
+
+	_, err = session.Run(query, parameters)
+
+	//logger.Debug("Created physical host in Neo4j", logger.LogFields{"host_id": host.ID}, result)
+	if err != nil {
+		return "", fmt.Errorf("error creating instance node: %s, %v", query, err)
+	}
+
+	return "", nil
+}
+
 // CreateVolumeNode always creates a new volume node and returns its UUID
-func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureComponent) (uuid string, err error) {
+func (r *Neo4jRepository) CreateVolumeNode(version string, volume dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return "", err
@@ -272,6 +313,7 @@ func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureCompo
 	query := `
     CREATE (v:Volume {
 		uuid: apoc.create.uuid(),
+		version: $version,
 		id: $id,
 		name: $name,
 		type: $type,
@@ -281,12 +323,14 @@ func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureCompo
 		bootable: $bootable,
 		encrypted: $encrypted,
 		multiattach: $multiattach,
-		device: $device
+		device: $device,
+		srcSnapshot: $snapshotID
 	})
 	RETURN v.uuid as uuid
 	`
 
 	parameters := map[string]interface{}{
+		"version":          version,
 		"id":               volume.ID,
 		"name":             volume.Name,
 		"type":             volume.Type,
@@ -297,6 +341,7 @@ func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureCompo
 		"encrypted":        volume.Metadata["encrypted"],
 		"multiattach":      volume.Metadata["multiattach"],
 		"device":           volume.Metadata["device"],
+		"snapshotID":       volume.Metadata["snapshotID"],
 	}
 
 	result, err := session.Run(query, parameters)
@@ -317,7 +362,7 @@ func (r *Neo4jRepository) CreateVolumeNode(volume dataparser.InfrastructureCompo
 }
 
 // CreateClusterNode always creates a new clusterNode and returns its UUID
-func (r *Neo4jRepository) CreateClusterNode(clusterNode dataparser.InfrastructureComponent) (uuid string, err error) {
+func (r *Neo4jRepository) CreateClusterNode(version string, clusterNode dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return "", err
@@ -328,6 +373,7 @@ func (r *Neo4jRepository) CreateClusterNode(clusterNode dataparser.Infrastructur
 	query := `
     CREATE (n:ClusterNode {
 		uuid: apoc.create.uuid(), 
+		version: $version,
 		id: $id,
 		name: $name,
 		type: $type,
@@ -338,6 +384,7 @@ func (r *Neo4jRepository) CreateClusterNode(clusterNode dataparser.Infrastructur
 
 	// Define the parameters
 	parameters := map[string]interface{}{
+		"version":   version,
 		"id":        clusterNode.ID,
 		"name":      clusterNode.Name,
 		"type":      clusterNode.Type,
@@ -363,7 +410,7 @@ func (r *Neo4jRepository) CreateClusterNode(clusterNode dataparser.Infrastructur
 }
 
 // CreatePod always creates a new pod and returns its UUID
-func (r *Neo4jRepository) CreatePodNode(pod dataparser.InfrastructureComponent) (uuid string, err error) {
+func (r *Neo4jRepository) CreatePodNode(version string, pod dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return "", err
@@ -374,6 +421,7 @@ func (r *Neo4jRepository) CreatePodNode(pod dataparser.InfrastructureComponent) 
 	query := `
     CREATE (p:Pod {
 		uuid: apoc.create.uuid(), 
+		version: $version,
 		id: $id,
 		name: $name,
 		type: $type,
@@ -384,6 +432,7 @@ func (r *Neo4jRepository) CreatePodNode(pod dataparser.InfrastructureComponent) 
 
 	// Define the parameters
 	parameters := map[string]interface{}{
+		"version":   version,
 		"id":        pod.ID,
 		"name":      pod.Name,
 		"type":      pod.Type,
@@ -408,7 +457,8 @@ func (r *Neo4jRepository) CreatePodNode(pod dataparser.InfrastructureComponent) 
 	return "", nil
 }
 
-func (r *Neo4jRepository) LinkResourceToMetadata(version string, projectUUID string) error {
+// LinkVolumeToInstance creates a relationship between a volume and attached Instances
+func (r *Neo4jRepository) LinkVolumeToInstance(volumeUUID string, instanceID string) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return err
@@ -416,43 +466,13 @@ func (r *Neo4jRepository) LinkResourceToMetadata(version string, projectUUID str
 	defer session.Close()
 
 	query := `
-	MATCH (m:Metadata {Version: $Version})
-	MATCH (p:Project {uuid: $projectUUID})
-	MERGE (m)-[r:SCANNED]->(p)
-	RETURN m, r, p;
-	`
-
-	parameters := map[string]interface{}{
-		"Version":     version,
-		"projectUUID": projectUUID,
-	}
-
-	_, err = session.Run(query, parameters)
-	if err != nil {
-		return fmt.Errorf("error creating SCANNED relationship: %s, %v", query, err)
-	}
-
-	logger.Debug("created SCANNED relationship", logger.LogFields{"version": version, "projectUUID": projectUUID})
-
-	return nil
-}
-
-// LinkVolumeToServer creates a relationship between a volume and attached servers
-func (r *Neo4jRepository) LinkVolumeToServer(volumeUUID string, serverID string) error {
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	query := `
-    MATCH (v:Volume {uuid: $volumeUUID}), (s:Server {id: $serverID})
-    MERGE (v)-[:AttachedTo]->(s)
+    MATCH (v:Volume {uuid: $volumeUUID}), (i:Instance {id: $instanceID})
+    MERGE (v)-[:AttachedTo]->(i)
     `
 
 	parameters := map[string]interface{}{
 		"volumeUUID": volumeUUID,
-		"serverID":   serverID,
+		"instanceID": instanceID,
 	}
 
 	_, err = session.Run(query, parameters)
@@ -462,32 +482,6 @@ func (r *Neo4jRepository) LinkVolumeToServer(volumeUUID string, serverID string)
 
 	return nil
 }
-
-func (r *Neo4jRepository) LinkServerToProject(serverUUID string, projectID string) error {
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	query := `
-    MATCH (s:Server {uuid: $serverUUID}), (p:Project {id: $projectID})
-    MERGE (s)-[:BelongsTo]->(p)
-    `
-
-	parameters := map[string]interface{}{
-		"serverUUID": serverUUID,
-		"projectID":  projectID,
-	}
-
-	_, err = session.Run(query, parameters)
-	if err != nil {
-		return fmt.Errorf("error creating BelongsTo relationship: %s, %v", query, err)
-	}
-
-	return nil
-}
-
 
 // CreateOrUpdateVolume creates or updates a Volume Node
 func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureComponent) error {
@@ -539,8 +533,8 @@ func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureC
 	for _, rel := range volume.Relationships {
 		if rel.Type == "AttachedTo" { //  relationship type
 			relationshipQuery := `
-			MATCH (v:Volume {ID: $volumeID}), (s:Server {ID: $targetID})
-			MERGE (v)-[:AttachedTo]->(s)
+			MATCH (v:Volume {ID: $volumeID}), (i:Instance {ID: $targetID})
+			MERGE (v)-[:AttachedTo]->(i)
 			`
 
 			relationshipParameters := map[string]interface{}{
@@ -560,12 +554,14 @@ func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureC
 	if err != nil {
 		logger.Error("Error creating Volume in Neo4j", err)
 	} else {
+
 		logger.Debug("Created volume in Neo4j", logger.LogFields{"volume_id": volume.ID})
 	}
 	return err
 }
-// CreateOrUpdateServer creates or updates a server node
-func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureComponent) error {
+
+// CreateOrUpdateInstance creates or updates a Instance node
+func (r *Neo4jRepository) CreateOrUpdateServer(instance dataparser.InfrastructureComponent) error {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
 	if err != nil {
 		return err
@@ -573,7 +569,7 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
 	defer session.Close()
 
 	query := `
-    MERGE (s:Server {ID: $id})
+    MERGE (s:Instance {ID: $id})
     ON CREATE SET 
         s.Name = $name,
         s.Type = $type,
@@ -599,38 +595,38 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
     `
 
 	parameters := map[string]interface{}{
-		"id":               server.ID,
-		"name":             server.Name,
-		"type":             server.Type,
-		"availabilityZone": server.AvailabilityZone,
-		"userID":           GetMetadataValue(server.Metadata, "UserID", ""),
-		"hostID":           GetMetadataValue(server.Metadata, "HostID", ""),
-		"tenantID":         GetMetadataValue(server.Metadata, "TenantID", ""),
-		"created":          GetMetadataValue(server.Metadata, "Created", ""),
-		"updated":          GetMetadataValue(server.Metadata, "Updated", ""),
-		"volumesAttached":  GetMetadataValue(server.Metadata, "VolumesAttached", ""),
-		"status":           GetMetadataValue(server.Metadata, "Status", ""),
+		"id":               instance.ID,
+		"name":             instance.Name,
+		"type":             instance.Type,
+		"availabilityZone": instance.AvailabilityZone,
+		"userID":           GetMetadataValue(instance.Metadata, "UserID", ""),
+		"hostID":           GetMetadataValue(instance.Metadata, "HostID", ""),
+		"tenantID":         GetMetadataValue(instance.Metadata, "TenantID", ""),
+		"created":          GetMetadataValue(instance.Metadata, "Created", ""),
+		"updated":          GetMetadataValue(instance.Metadata, "Updated", ""),
+		"volumesAttached":  GetMetadataValue(instance.Metadata, "VolumesAttached", ""),
+		"status":           GetMetadataValue(instance.Metadata, "Status", ""),
 	}
 
 	_, err = session.Run(query, parameters)
 	if err != nil {
-		return fmt.Errorf("error creating Server in Neo4j: %v", err)
+		return fmt.Errorf("Error creating instance in Neo4j", err)
 	} else { // if no err create relationship
-		logger.Debug("Created server in Neo4j", logger.LogFields{"server_id": server.ID})
+		logger.Debug("Created instance in Neo4j", logger.LogFields{"instance_id": instance.ID})
 
 		// Handle relationships
-		for _, rel := range server.Relationships {
+		for _, rel := range instance.Relationships {
 			switch rel.Type {
 
 			case "BelongsTo": // specific relationship type
 				relationshipQuery := `
-            MATCH (s:Server {ID: $serverID}), (p:Project {ID: $targetID})
-            MERGE (s)-[:BelongsTo]->(p)
+            MATCH (i:Instance {ID: $instanceID}), (p:Project {ID: $targetID})
+            MERGE (i)-[:BelongsTo]->(p)
             `
 
 				relationshipParameters := map[string]interface{}{
-					"serverID": server.ID,
-					"targetID": rel.Target,
+					"instanceID": instance.ID,
+					"targetID":   rel.Target,
 				}
 
 				_, err = session.Run(relationshipQuery, relationshipParameters)
@@ -640,18 +636,18 @@ func (r *Neo4jRepository) CreateOrUpdateServer(server dataparser.InfrastructureC
 
 			case "AttachedTo":
 				relationshipQuery := `
-				MATCH (s:Server {ID: $serverID}), (v:Volume {ID: $volumeID})
-				MERGE (s)-[:AttachedTo]->(v)
+				MATCH (i:Instance {ID: $instanceID}), (v:Volume {ID: $volumeID})
+				MERGE (i)-[:AttachedTo]->(v)
 				`
 
 				relationshipParameters := map[string]interface{}{
-					"serverID": server.ID,
-					"volumeID": rel.Target,
+					"instanceID": instance.ID,
+					"volumeID":   rel.Target,
 				}
 
 				_, err = session.Run(relationshipQuery, relationshipParameters)
 				if err != nil {
-					return fmt.Errorf("error creating relationship between server and volume: %v", err)
+					return fmt.Errorf("error creating relationship between instance and volume: %v", err)
 				}
 			}
 
@@ -730,13 +726,13 @@ func (r *Neo4jRepository) CreateOrUpdatePod(pod dataparser.InfrastructureCompone
 		for _, rel := range pod.Relationships {
 			if rel.Type == "RunsOn" {
 				relationshipQuery := `
-            MATCH (p:Pod {ID: $podID}), (s:Server {Name: $serverName})
-            MERGE (p)-[:RunsOn]->(s)
+            MATCH (p:Pod {ID: $podID}), (i:Instance {Name: $instanceName})
+            MERGE (p)-[:RunsOn]->(i)
             `
 
 				relationshipParameters := map[string]interface{}{
-					"podID":      pod.ID,
-					"serverName": rel.Target,
+					"podID":        pod.ID,
+					"instanceName": rel.Target,
 				}
 
 				_, err = session.Run(relationshipQuery, relationshipParameters)
@@ -772,8 +768,6 @@ func (r *Neo4jRepository) FindInstanceByUUID(ctx context.Context, uuid string) (
 	if err != nil {
 		logger.Error("Cannot find Instance by uuid", logger.LogFields{"uuid": uuid}, err)
 	}
-
-	logger.Debug("CYPHER_QUERY", logger.LogFields{"query": query, "args": args})
 
 	Instance := model.Instance{}
 
@@ -828,8 +822,6 @@ func (r *Neo4jRepository) FindInstanceByProjectID(ctx context.Context, projectID
 		logger.Error("Cannot find instances by projectID", logger.LogFields{"projectID": projectID}, err)
 		return nil, err
 	}
-
-	logger.Debug("CYPHER_QUERY", logger.LogFields{"query": query, "args": args})
 
 	instances := make([]*model.Instance, 0)
 

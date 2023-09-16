@@ -15,6 +15,7 @@ type Relationship struct {
 	Type   string
 	Target string
 }
+
 type ScanMetadata struct {
 	ScanID   string
 	ScanDate time.Time

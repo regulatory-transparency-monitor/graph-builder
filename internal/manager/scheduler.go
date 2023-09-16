@@ -1,4 +1,4 @@
-package orchestrator
+package manager
 
 import "github.com/robfig/cron"
 
@@ -11,7 +11,6 @@ func NewScheduler() *Scheduler {
 		cronJob: cron.New(),
 	}
 }
-
 
 func (s *Scheduler) Start() {
 	s.cronJob.Start()

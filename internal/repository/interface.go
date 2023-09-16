@@ -17,21 +17,26 @@ type Repository interface {
 	CreateMetadataNode(version string, timestamp string) error // Create a new metadata node using incremented version
 
 	// Create Nodes using generic data
-	CreateProjectNode(dataparser.InfrastructureComponent) (uuid string, err error)             // Create a new project node
-	CreateServerNode(server dataparser.InfrastructureComponent) (uuid string, err error)       // Create a new server node
-	CreateVolumeNode(volume dataparser.InfrastructureComponent) (uuid string, err error)       // Create a new volume node
-	CreateClusterNode(clusterNode dataparser.InfrastructureComponent) (uuid string, err error) // Create a new cluster node
-	CreatePodNode(pod dataparser.InfrastructureComponent) (uuid string, err error)                 // Create a new pod node
-	// Create and update nodes using generic data
+	CreateProjectNode(version string, project dataparser.InfrastructureComponent) (uuid string, err error)     // Create a new project node
+	CreateInstanceNode(version string, instance dataparser.InfrastructureComponent) (uuid string, err error)   // Create a new instance node
+	CreatePhysicalHostNode(version string, host dataparser.InfrastructureComponent) (uuid string, err error)   // Create a new physical host node
+	CreateVolumeNode(version string, volume dataparser.InfrastructureComponent) (uuid string, err error)       // Create a new volume node
+	CreateClusterNode(version string, clusterNode dataparser.InfrastructureComponent) (uuid string, err error) // Create a new cluster node
+	CreatePodNode(version string, pod dataparser.InfrastructureComponent) (uuid string, err error)             // Create a new pod node
+
+	//Old loghic Create and update nodes using generic data
 	CreateOrUpdateServer(dataparser.InfrastructureComponent) error
 	CreateOrUpdateVolume(dataparser.InfrastructureComponent) error
 	CreateOrUpdateClusterNode(dataparser.InfrastructureComponent) error
 	CreateOrUpdatePod(dataparser.InfrastructureComponent) error
 
 	// Create Relationships
-	LinkResourceToMetadata(version string, projectUUID string) error // Link a projectUUID of current scan to metadata node
-	LinkServerToProject(serverUUID string, projectID string) error   // Link a server to a projectID
+	LinkProjectToMetadata(version string, projectUUID string) error // Link a projectUUID of current scan to metadata node
 
+	CreateInstanceRelationships(instanceID string, version string, relationships []dataparser.Relationship) error // Create relationships for a given instance
+	CreateClusterNodeRel(nodeID string, version string, relationships []dataparser.Relationship) error            // Create relationships for a given cluster node
+	CreateVolumeRel(volumeID string, version string, relationships []dataparser.Relationship) error               // Create relationships for a given volume
+	CreatePodRel(podID string, version string, relationships []dataparser.Relationship) error                     // Create relationships for a given pod
 	// GraphQL logic
 	FindInstanceByUUID(ctx context.Context, uuid string) (*model.Instance, error)
 	FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error)

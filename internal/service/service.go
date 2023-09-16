@@ -22,23 +22,38 @@ func NewService(r repository.Repository) *Service {
 	}
 }
 
-func (s *Service) CreateInfrastructureComponent(component dataparser.InfrastructureComponent) (uuid string, err error) {
+func (s *Service) CreateInfrastructureComponent(version string, component dataparser.InfrastructureComponent) (uuid string, err error) {
 	switch component.Type {
 	case "Project":
-		return s.repository.CreateProjectNode(component)
-	case "Server":
-		return s.repository.CreateServerNode(component)
+		return s.repository.CreateProjectNode(version, component)
+	case "Instance":
+		return s.repository.CreateInstanceNode(version, component)
 	case "Volume":
-		return s.repository.CreateVolumeNode(component)
+		return s.repository.CreateVolumeNode(version, component)
 	case "ClusterNode":
-		return s.repository.CreateClusterNode(component)
+		return s.repository.CreateClusterNode(version, component)
 	case "Pod":
-		return s.repository.CreatePodNode(component)
+		return s.repository.CreatePodNode(version, component)
+	case "PhysicalHost":
+		return s.repository.CreatePhysicalHostNode(version, component)
 	default:
 		return "", fmt.Errorf("unknown component type: %s", component.Type)
 	}
 }
 
+func (s *Service) CreateVolumeRel(volumeID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreateVolumeRel(volumeID, version, relationships)
+}
+
+func (s *Service) CreatePodRel(podID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreatePodRel(podID, version, relationships)
+}
+func (s *Service) CreateClusterNodeRel(nodeID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreateClusterNodeRel(nodeID, version, relationships)
+}
+func (s *Service) CreateInstanceRelationships(instanceID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreateInstanceRelationships(instanceID, version, relationships)
+}
 func (s *Service) SetupUUIDForKnownLabels() error {
 	return s.repository.SetupUUIDForKnownLabels()
 }
@@ -46,7 +61,7 @@ func (s *Service) GetLatestVersion() (string, error) {
 	return s.repository.GetLatestVersion()
 }
 
-func (s *Service) CreateNewMetadataVersion(version, timestamp string) error {
+func (s *Service) CreateNewMetadataVersion(version string, timestamp string) error {
 	return s.repository.CreateMetadataNode(version, timestamp)
 }
 
@@ -54,9 +69,8 @@ func (s *Service) CreateMetadataNode(version string, timeString string) error {
 	return s.repository.CreateMetadataNode(version, timeString)
 }
 
-// In the services package
-func (s *Service) LinkResourceToMetadata(currentVersion string, projectUUID string) error {
-	return s.repository.LinkResourceToMetadata(currentVersion, projectUUID)
+func (s *Service) LinkProjectToMetadata(version string, projectUUID string) error {
+	return s.repository.LinkProjectToMetadata(version, projectUUID)
 }
 
 // FindInstanceByUUID finds a Instance by its uuid

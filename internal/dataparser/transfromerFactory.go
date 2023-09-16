@@ -53,6 +53,7 @@ func getPrefix(key string) string {
 }
 
 func (o *OpenStackTransformer) Transform(key string, data []interface{}) ([]InfrastructureComponent, error) {
+
 	switch key {
 	case "os_project":
 		return handleProject(data), nil
@@ -103,42 +104,59 @@ func handleProject(data []interface{}) []InfrastructureComponent {
 }
 
 func handleCompute(data []interface{}) []InfrastructureComponent {
+	seenHosts := make(map[string]bool)
 	var components []InfrastructureComponent
 	for _, data := range data {
 
-		serverDetails, ok := data.(models.ServerDetails)
+		instanceDetails, ok := data.(models.ServerDetails)
 		if !ok {
-			fmt.Printf("Expected type models.ServerDetails, but got: %T\n", data)
+			fmt.Printf("Expected type models.instanceDetails, but got: %T\n", data)
 			continue
 		}
-		server := serverDetails.Server // Accessing the Server field of the ServerDetails struct
-		volumeIDs := extractVolumeIDs(server.VolumesAttached)
+		instance := instanceDetails.Server // Accessing the Instance field of the InstanceDetails struct
+		volumeIDs := extractVolumeIDs(instance.VolumesAttached)
 
 		var relationships []Relationship
-		relationships = append(relationships, Relationship{
-			Type:   "BelongsTo",
-			Target: server.TenantID, // point to the project
-		})
+		relationships = append(relationships,
+			Relationship{
+				Type:   "BELONGS_TO",
+				Target: instance.TenantID, // point to the project
+			},
+			Relationship{
+				Type:   "ASSIGNED_HOST",
+				Target: instance.HostID,
+			})
+		hostID := instance.HostID
+		if _, exists := seenHosts[hostID]; !exists {
+			hostComponent := InfrastructureComponent{
+				ID:               hostID,
+				Name:             hostID,
+				AvailabilityZone: instance.AvailabilityZone,
+				Type:             "PhysicalHost",
+			}
+			components = append(components, hostComponent)
+			seenHosts[hostID] = true
+		}
 
 		for _, volumeID := range volumeIDs {
 			relationships = append(relationships, Relationship{
-				Type:   "AttachedTo",
+				Type:   "ATTACHED_TO",
 				Target: volumeID, // point to the volumes
 			})
 		}
 
 		component := InfrastructureComponent{
-			ID:               server.ID,
-			Name:             server.Name,
-			Type:             "Server",
-			AvailabilityZone: server.AvailabilityZone,
+			ID:               instance.ID,
+			Name:             instance.Name,
+			Type:             "Instance",
+			AvailabilityZone: instance.AvailabilityZone,
 			Metadata: map[string]interface{}{
-				"Status":          server.Status,
-				"TenantID":        server.TenantID,
-				"UserID":          server.UserID,
-				"HostID":          server.HostID,
-				"Created":         server.Created,
-				"Updated":         server.Updated,
+				"Status":          instance.Status,
+				"TenantID":        instance.TenantID,
+				"UserID":          instance.UserID,
+				"HostID":          instance.HostID,
+				"Created":         instance.Created,
+				"Updated":         instance.Updated,
 				"VolumesAttached": volumeIDs,
 			},
 			Relationships: relationships,
@@ -171,7 +189,6 @@ func handleVolume(data []interface{}) []InfrastructureComponent {
 			continue
 		}
 		component := transformVolumeToComponent(volume)
-
 		if component != nil {
 			components = append(components, *component)
 		}
@@ -183,9 +200,9 @@ func transformVolumeToComponent(volume *models.Volume) *InfrastructureComponent 
 	metadata := make(map[string]interface{})
 
 	// Handle attachments
-	var serverID string
+	var instanceID string
 	if len(volume.Attachments) > 0 {
-		serverID = volume.Attachments[0].ServerID
+		instanceID = volume.Attachments[0].ServerID
 
 		// Add other fields from the attachment to the metadata
 		attachment := volume.Attachments[0]
@@ -205,7 +222,11 @@ func transformVolumeToComponent(volume *models.Volume) *InfrastructureComponent 
 	metadata["multiattach"] = volume.Multiattach
 	metadata["replication_status"] = volume.ReplicationStatus
 	metadata["size"] = volume.Size
-	metadata["snapshot_id"] = volume.SnapshotID
+	if volume.SnapshotID != "" {
+		metadata["snapshotID"] = volume.SnapshotID
+	} else {
+		metadata["snapshotID"] = false
+	}
 	metadata["source_volid"] = volume.SourceVolid
 	metadata["status"] = volume.Status
 	metadata["user_id"] = volume.UserID
@@ -219,8 +240,8 @@ func transformVolumeToComponent(volume *models.Volume) *InfrastructureComponent 
 		Metadata:         metadata,
 		Relationships: []Relationship{
 			{
-				Type:   "AttachedTo",
-				Target: serverID,
+				Type:   "ATTACHED_TO",
+				Target: instanceID,
 			},
 		},
 	}
@@ -234,7 +255,7 @@ func handleNode(data []interface{}) []InfrastructureComponent {
 			fmt.Printf("Expected type m.NodeList, but got: %T\n", data)
 			continue
 		}
-		nodes := nodeList.Items // Accessing the Server field of the ServerDetails struct
+		nodes := nodeList.Items // Accessing the cluster node field
 		for _, node := range nodes {
 			component := InfrastructureComponent{
 				ID:   node.Metadata.UID,
@@ -242,6 +263,12 @@ func handleNode(data []interface{}) []InfrastructureComponent {
 				Type: "ClusterNode",
 				Metadata: map[string]interface{}{
 					"CreatedAt": node.Metadata.CreationTimestamp,
+				},
+				Relationships: []Relationship{
+					{
+						Type:   "IS_HOSTING",
+						Target: node.Status.NodeInfo.SystemUUID,
+					},
 				},
 			}
 			components = append(components, component)
@@ -258,7 +285,7 @@ func hanldePod(data []interface{}) []InfrastructureComponent {
 			fmt.Printf("Expected type m.PodList, but got: %T\n", data)
 			continue
 		}
-		pods := podList.Items // Accessing the Server field of the ServerDetails struct
+		pods := podList.Items // Accessing the Instance field of the InstanceDetails struct
 		for _, pod := range pods {
 			//fmt.Printf("node: %v\n", node)
 
@@ -271,11 +298,12 @@ func hanldePod(data []interface{}) []InfrastructureComponent {
 				},
 				Relationships: []Relationship{
 					{
-						Type:   "RunsOn",
+						Type:   "RUNS_ON",
 						Target: pod.Spec.NodeName,
 					},
 				},
 			}
+			//logger.Debug(logger.LogFields{"pod": component})
 			components = append(components, component)
 		}
 	}
