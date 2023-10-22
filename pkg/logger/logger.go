@@ -58,7 +58,7 @@ func InitializeLogger() {
 	// TODO: add possibility to output to file in the future
 
 	// Create (or open) the log file
-	logFile, err := os.OpenFile("application.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	logFile, err := os.OpenFile("logfile.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		// Handle the error. You can decide if you want to panic or just print a message
 		panic("Failed to open log file: " + err.Error())
@@ -69,7 +69,7 @@ func InitializeLogger() {
 	logger.SetOutput(mw)
 
 	// TODO comment out for prouction
-	logger.SetOutput(os.Stderr)
+	//logger.SetOutput(os.Stderr)
 
 	formatter := viper.GetString("logger.formatter")
 	switch strings.ToLower(formatter) {

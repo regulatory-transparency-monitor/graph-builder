@@ -1,0 +1,29 @@
+providers:
+  - name: openstack
+    enabled: true
+    api_access:
+      base_url: "https://PROVIDER_BASE_API_URL/"
+      identity_api: "identity/v3/"
+      compute_api: "compute/v2.1/"
+      storage_api: "volume/v3/"
+    credentials:
+      os_auth_type: "app-credentials"
+      app_credentials_id: "ID"
+      app_credentials_secret: "SECRET"
+  - name: aws
+    enabled: false
+    api_access:
+      base_url: ""
+      identity_api: ""
+      compute_api: ""
+    credentials:
+  - name: kubernetes
+    enabled: true
+    api_access:
+      base_url: "https://KUBERNETES_API_IP:PORT"
+      token: "TOKEN"
+logger:
+  formatter: "console"
+  level: "debug"
+
+

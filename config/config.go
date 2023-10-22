@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
+	"runtime"
 
 	"github.com/spf13/viper"
 )
@@ -34,26 +36,49 @@ type Logger struct {
 
 func LoadConfig() error {
 	// Load config
-	viper.SetDefault("API_PORT", "8080")
-	viper.SetDefault("NEO4J_HOST", "localhost")
-	viper.SetDefault("NEO4J_PORT", "7687")
-	viper.SetDefault("NEO4J_USER", "neo4j")
-	viper.SetDefault("NEO4J_PASS", "testingshit")
-	viper.SetDefault("NEO4J_PROTO", "bolt")
-
-	viper.SetConfigName("config") // Name of the config file (without extension)
-	viper.SetConfigType("yaml")   // Type of the config file
-	viper.AddConfigPath("config") // Look for the config in the working directory
-	err := viper.ReadInConfig()   // Find and read the config file
-	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
-	}
+	setDefaults()
 	viper.AutomaticEnv()
+
+	if err := setConfigPath(); err != nil {
+		return err
+	}
+
+	err := viper.ReadInConfig() // Find and read the config file
+	if err != nil {
+		panic(fmt.Errorf("fatal error config file: %s", err))
+	}
+
 	var config Config
 	err = viper.Unmarshal(&config)
 	if err != nil {
-		panic(fmt.Errorf("Fatal error config file: %s \n", err))
+		panic(fmt.Errorf("fatal error config file: %s", err))
 	}
 
 	return err
+}
+
+// setDefaults defines the default values for the configuration.
+func setDefaults() {
+	viper.SetDefault("API_PORT", "8080")
+	viper.SetDefault("SERVER_IP", "0.0.0.0")
+	viper.SetDefault("NEO4J_HOST", "localhost")
+	viper.SetDefault("NEO4J_PORT", "7687")
+	viper.SetDefault("NEO4J_USER", "neo4j")
+	viper.SetDefault("NEO4J_PASS", "1985ycdibiy")
+	viper.SetDefault("NEO4J_PROTO", "bolt")
+}
+
+func setConfigPath() error {
+	viper.SetConfigName("config") // Name of the config file (without extension)
+	viper.SetConfigType("yaml")   // Type of the config file
+
+	// Determine the directory of the current file.
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		return fmt.Errorf("failed to get current file path")
+	}
+	dir := filepath.Dir(filename)
+	viper.AddConfigPath(dir)
+
+	return nil
 }
