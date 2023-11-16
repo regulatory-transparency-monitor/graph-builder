@@ -1,17 +1,14 @@
 version: '3'
-
 services:
   neo4j:
     container_name: neo4j-db
     image: neo4j:latest
     volumes:
-      - ./neo4j/data:/data
-      - ./neo4j/logs:/logs
-      - ./neo4j/import:/var/lib/neo4j/import
-      - ./neo4j/conf:/var/lib/neo4j/conf
+     - ./neo4j/conf:/var/lib/neo4j/conf
+     #- /mnt/volume/neo4j-data:/data
     restart: always
     environment:
-      - NEO4J_AUTH=neo4j/testingshit
+      - NEO4J_AUTH=neo4j/1985ycdibiy
       - NEO4J_apoc_import_file_enabled=true 
       - NEO4J_apoc_import_file_use_neo4j_config=true 
       - NEO4J_PLUGINS=["apoc", "apoc-extended"]
@@ -19,41 +16,45 @@ services:
       - NEO4J_dbms_security_procedures_allowlist=apoc.*
       - NEO4J_apoc_uuid_enabled=true
       - NEO4J_apoc_uuid_autoCreate=true  
-       
     networks:
       - neo4j-net
     ports:
       - '7474:7474'
       - '7687:7687'
-  # backend:
-  #   container_name: graph-builder
-  #   image: graph-builder
-  #   build: ./
-  #   networks:
-  #     - neo4j-net
-  #   ports:
-  #     - '8080:8080'
-  #   depends_on:
-  #     - neo4j
-  #   environment:
-  #     - NEO4J_PROTO=bolt
-  #     - NEO4J_HOST=neo4j
-  #     - NEO4J_PORT=7687
-  #     - NEO4J_USER=neo4j
-  #     - NEO4J_PASS=test 
-  #   container_name: 'collector-service'
-  #     build:
-  #       context: ./
-  #       dockerfile: Dockerfile
-  #     ports: 
-  #       - '8080:8080'
-  #     volumes: 
-  #       - './collector-service:/go/src/app'
-  #     depends_on: 
-  #       - 'neo4j' 
-  #     networks: 
-  #         - service-network 
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  backend:
+    container_name: transparency-monitor
+    image: transparency-monitor
+    build: 
+      context: ../
+      dockerfile: deployments/Dockerfile
+    networks:
+      - neo4j-net
+    ports:
+      - '8080:8080'
+    depends_on:
+      - neo4j
+    environment:
+      - NEO4J_PROTO=bolt
+      - NEO4J_HOST=neo4j
+      - NEO4J_PORT=7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASS=1985ycdibiy 
+  neodash:
+    image: neo4jlabs/neodash:latest
+    #platform: linux/amd64
+    ports:
+      - '5005:5005'
+    environment:
+      - NGINX_PORT=5005
+    networks:
+      - neo4j-net
+    depends_on:
+      - neo4j
 networks:
   neo4j-net:
     driver: 'bridge'

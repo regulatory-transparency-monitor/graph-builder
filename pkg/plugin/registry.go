@@ -8,7 +8,6 @@ import (
 // Plugin interface
 type Plugin interface {
 	Initialize(config map[string]interface{}) error
-
 	FetchData() (models.RawData, error)
 }
 

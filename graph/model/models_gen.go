@@ -2,68 +2,120 @@
 
 package model
 
-type Node interface {
-	IsNode()
-	GetUUID() string
+type ClusterNode struct {
+	UUID                string    `json:"uuid"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Type                string    `json:"type"`
+	CreatedAt           string    `json:"createdAt"`
+	ProvisionedInstance *Instance `json:"provisionedInstance"`
+	Pods                []*Pod    `json:"pods"`
 }
 
-type Cluster struct {
-	UUID        string      `json:"uuid"`
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	MasterNodes []*Instance `json:"masterNodes"`
-	WorkerNodes []*Instance `json:"workerNodes,omitempty"`
+type DataCategory struct {
+	Name         string         `json:"name"`
+	Purpose      string         `json:"purpose"`
+	LegalBasis   string         `json:"legalBasis"`
+	Storage      string         `json:"storage"`
+	PdIndicators []*PDIndicator `json:"pdIndicators"`
 }
-
-func (Cluster) IsNode()              {}
-func (this Cluster) GetUUID() string { return this.UUID }
 
 type Instance struct {
-	UUID             string   `json:"uuid"`
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Description      *string  `json:"description,omitempty"`
-	ProjectID        string   `json:"projectID"`
-	Status           *string  `json:"status,omitempty"`
-	AvailabilityZone []*Zone  `json:"availabilityZone"`
-	Created          string   `json:"created"`
-	Cluster          *Cluster `json:"cluster,omitempty"`
-	MountedVolume    *Volume  `json:"mountedVolume,omitempty"`
+	UUID             string        `json:"uuid"`
+	ID               string        `json:"id"`
+	Name             string        `json:"name"`
+	Type             string        `json:"type"`
+	AvailabilityZone string        `json:"availabilityZone"`
+	UserID           string        `json:"userID"`
+	HostID           string        `json:"hostID"`
+	TenantID         string        `json:"tenantID"`
+	Created          string        `json:"created"`
+	Updated          string        `json:"updated"`
+	VolumesAttached  []string      `json:"volumesAttached"`
+	Status           string        `json:"status"`
+	PhysicalHost     *PhysicalHost `json:"physicalHost,omitempty"`
+	Volumes          []*Volume     `json:"volumes"`
 }
 
-func (Instance) IsNode()              {}
-func (this Instance) GetUUID() string { return this.UUID }
+type Metadata struct {
+	Version       string     `json:"version"`
+	ScanTimestamp string     `json:"scanTimestamp"`
+	Projects      []*Project `json:"projects"`
+}
+
+type PDIndicator struct {
+	UUID           string          `json:"uuid"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Type           string          `json:"type"`
+	DataCategories []*DataCategory `json:"dataCategories"`
+	Pods           []*Pod          `json:"pods"`
+}
+
+type PersistentVolume struct {
+	UUID                  string                 `json:"uuid"`
+	ID                    string                 `json:"id"`
+	Name                  string                 `json:"name"`
+	Type                  string                 `json:"type"`
+	CreatedAt             string                 `json:"createdAt"`
+	StoredVolume          *Volume                `json:"storedVolume"`
+	PersistentVolumeClaim *PersistentVolumeClaim `json:"persistentVolumeClaim"`
+}
+
+type PersistentVolumeClaim struct {
+	UUID             string            `json:"uuid"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"`
+	PersistentVolume *PersistentVolume `json:"persistentVolume"`
+	Pods             []*Pod            `json:"pods"`
+}
+
+type PhysicalHost struct {
+	UUID             string      `json:"uuid"`
+	ID               string      `json:"id"`
+	Name             string      `json:"name"`
+	Type             string      `json:"type"`
+	AvailabilityZone string      `json:"availabilityZone"`
+	Instances        []*Instance `json:"instances"`
+}
 
 type Pod struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	WorkerNode *Instance `json:"workerNode"`
-	Schema     *string   `json:"schema,omitempty"`
-	HasPii     bool      `json:"has_pii"`
-	Volumes    []*Volume `json:"volumes,omitempty"`
+	UUID                   string                   `json:"uuid"`
+	ID                     string                   `json:"id"`
+	Name                   string                   `json:"name"`
+	Type                   string                   `json:"type"`
+	CreatedAt              string                   `json:"createdAt"`
+	Storage                string                   `json:"storage"`
+	ClusterNode            *ClusterNode             `json:"clusterNode"`
+	PersistentVolumeClaims []*PersistentVolumeClaim `json:"persistentVolumeClaims"`
+	PdIndicators           []*PDIndicator           `json:"pdIndicators"`
 }
 
-type Schema struct {
-	ID          string `json:"id"`
-	Pod         *Pod   `json:"pod"`
-	PrivacyInfo string `json:"privacyInfo"`
+type Project struct {
+	UUID             string      `json:"uuid"`
+	ID               string      `json:"id"`
+	Name             string      `json:"name"`
+	Type             string      `json:"type"`
+	AvailabilityZone string      `json:"availabilityZone"`
+	Enabled          bool        `json:"enabled"`
+	Description      string      `json:"description"`
+	Instances        []*Instance `json:"instances"`
 }
 
 type Volume struct {
-	UUID             string    `json:"uuid"`
-	ID               string    `json:"id"`
-	Name             string    `json:"name"`
-	Pod              *Pod      `json:"pod,omitempty"`
-	AttachedInstance *Instance `json:"attachedInstance"`
+	UUID             string            `json:"uuid"`
+	ID               string            `json:"id"`
+	Name             string            `json:"name"`
+	Type             string            `json:"type"`
+	AvailabilityZone string            `json:"availabilityZone"`
+	Status           string            `json:"status"`
+	Size             int               `json:"size"`
+	Bootable         bool              `json:"bootable"`
+	Encrypted        bool              `json:"encrypted"`
+	Multiattach      bool              `json:"multiattach"`
+	Device           string            `json:"device"`
+	SrcSnapshot      string            `json:"srcSnapshot"`
+	Instances        []*Instance       `json:"instances"`
+	PersistentVolume *PersistentVolume `json:"persistentVolume,omitempty"`
 }
-
-func (Volume) IsNode()              {}
-func (this Volume) GetUUID() string { return this.UUID }
-
-type Zone struct {
-	UUID             string `json:"uuid"`
-	AvailabilityZone string `json:"availabilityZone"`
-}
-
-func (Zone) IsNode()              {}
-func (this Zone) GetUUID() string { return this.UUID }

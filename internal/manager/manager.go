@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/plugin"
 	services "github.com/regulatory-transparency-monitor/graph-builder/internal/service"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/versioning"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/plugin"
 )
 
 type Manager struct {
@@ -50,7 +50,7 @@ func (o *Manager) Start() error {
 		return err
 	}
 	// 2) Run Initial infrastructure scan
-	err = o.getInfrastructure()
+	err = o.coordinator()
 	if err != nil {
 		return err
 	}
@@ -60,21 +60,21 @@ func (o *Manager) Start() error {
 	return nil
 }
 
-// PeriodicScan scans the infrastructure periodically using provider plugins
+// startPeriodicScans scans the infrastructure periodically using provider plugins
 func (o *Manager) startPeriodicScans() {
-	o.Scheduler.AddTask("@every 30s", func() {
+	o.Scheduler.AddTask("@every 3m", func() {
 		o.VersionManager.IncrementVersion()
-		o.getInfrastructure()
+		o.coordinator()
 	})
 	o.Scheduler.Start()
 }
 
 func getCurrentTimeString() string {
-	// Assuming you want a specific time format, like "2006-01-02 15:04:05"
 	return time.Now().Format("2006-01-02 15:04:05")
 }
 
-func (o *Manager) getInfrastructure() error {
+func (o *Manager) coordinator() error {
+
 	v := o.VersionManager.GetCurrentVersion()
 
 	err := o.Service.CreateMetadataNode(v, getCurrentTimeString())
@@ -82,7 +82,7 @@ func (o *Manager) getInfrastructure() error {
 		logger.Error("Failed to create metadata node: %v", err)
 		return err
 	}
-
+	logger.Info("*** Start fetching resources *** ")
 	// 0) Fetch API services using the appropriate plugin
 	for providerType := range o.PluginManager.ActivePlugins {
 		logger.Info("Fetching API services using ", logger.LogFields{"provider plugin": providerType})
@@ -95,7 +95,7 @@ func (o *Manager) getInfrastructure() error {
 			logger.Error("Error transforming data: %v", err)
 			continue // continue to next provider if there's an error
 		}
-		logger.Info("Generic data transformed")
+		logger.Info("*** Generic data transformed ***")
 
 		// 3) Store generic data in Neo4j
 		for _, component := range genericData {
@@ -114,109 +114,17 @@ func (o *Manager) getInfrastructure() error {
 			}
 		}
 
-		// 4) Create relationships between nodes
-		// 2. Relationship Creation Phase
+		// 4) Relationship Creation Phase: Create relationships between nodes
 		for _, component := range genericData {
-			if component.Type == "Instance" {
-				err := o.Service.CreateInstanceRelationships(component.ID, v, component.Relationships)
-				if err != nil {
-					logger.Error("Failed to create relationships for instance: %v", err)
-				}
+			err := o.Service.CreateRelationships(v, component)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Error creating Relationship %s in Neo4j: %v", component.Type, err))
+				continue
 			}
-			if component.Type == "ClusterNode" {
-				err := o.Service.CreateClusterNodeRel(component.ID, v, component.Relationships)
-				if err != nil {
-					logger.Error("Failed to create relationships for cluster node: %v", err)
-				}
-			}
-			if component.Type == "Pod" {
-				err := o.Service.CreatePodRel(component.ID, v, component.Relationships)
-				if err != nil {
-					logger.Error("Failed to create relationships for pod: %v", err)
-				}
-			}
-			if component.Type == "Volume" {
-				err := o.Service.CreateVolumeRel(component.ID, v, component.Relationships)
-				if err != nil {
-					logger.Error("Failed to create relationships for volume: %v", err)
-				}
-			}
-
 		}
 
 	}
-	logger.Info("*** Generic data storring in Neo4j finsihed for all plugins ***")
+	logger.Info("*** Finsihed storing data for all plugins ***")
 
 	return nil
 }
-
-// For testing purposes
-/* // Print each InfrastructureComponent
-for _, genericData := range genericData {
-	logger.Debug(logger.LogFields(printInfrastructureComponent(&genericData)))
-}func printInfrastructureComponent(ic *dataparser.InfrastructureComponent) {
-	fmt.Println("InfrastructureComponent:")
-	fmt.Println("----------------------------")
-	fmt.Printf("ID: %s\n", ic.ID)
-	fmt.Printf("Name: %s\n", ic.Name)
-	fmt.Printf("Type: %s\n", ic.Type)
-	fmt.Printf("AvailabilityZone: %s\n", ic.AvailabilityZone)
-	fmt.Println("Metadata:")
-	for key, value := range ic.Metadata {
-		fmt.Printf("  %s: %v\n", key, value)
-	}
-	fmt.Println("Relationships:")
-	for _, rel := range ic.Relationships {
-		fmt.Printf("  Type: %s, Target: %s\n", rel.Type, rel.Target)
-	}
-	fmt.Println("----------------------------")
-}
-*/
-// TODO make Manager trigger scan and traqnsformation concurrent
-/* type TransformResult struct {
-	Name   string
-	Result YourResultType // Replace with the actual type of your results
-}
-
-type TransformError struct {
-	Name string
-	Err  error
-}
-
-
-// TODO add concurrency to scan and transform
-func ConcurrentScanAndTransform() ([]TransformResult, []TransformError) {
-	n := len(plugin.PluginRegistry)
-	resultsCh := make(chan TransformResult, n)
-	errorsCh := make(chan TransformError, n)
-
-	for name, instance := range plugin.PluginRegistry {
-		go func(pluginName string, pluginInstance YourPluginType) {
-			// Scanning
-			rawData := plugin.Scanner(pluginInstance)
-
-			// Transformation
-			transform := dataparser.TransformerFactory(pluginName)
-			genericData, err := transform.Transform(rawData)
-			if err != nil {
-				errorsCh <- TransformError{Name: pluginName, Err: err}
-				return
-			}
-
-			resultsCh <- TransformResult{Name: pluginName, Result: genericData}
-		}(name, instance)
-	}
-
-	var results []TransformResult
-	var errors []TransformError
-	for i := 0; i < n; i++ {
-		select {
-		case result := <-resultsCh:
-			results = append(results, result)
-		case err := <-errorsCh:
-			errors = append(errors, err)
-		}
-	}
-
-	return results, errors
-} */

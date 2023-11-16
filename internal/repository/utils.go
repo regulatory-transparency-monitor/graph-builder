@@ -7,40 +7,54 @@ import (
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 )
 
-// ParseCypherQueryResult parses a cypher query result record and store the result in target interface
-//   - record: neo4j result record
-//   - alias: the alias used in cypher query (e.g. m.title)
-//   - target: target interface (e.g. models.Movie)
-//     Target object should a "db" tab (e.g. `db:"title"`)
 func ParseCypherQueryResult(record neo4j.Record, alias string, target interface{}) error {
 	elem := reflect.ValueOf(target).Elem()
 
 	for i := 0; i < elem.Type().NumField(); i++ {
 		structField := elem.Type().Field(i)
 
-		tag := structField.Tag.Get("db")
+		tag := structField.Tag.Get("json") // Reading from the "json" tag
 		fieldType := structField.Type
 		fieldName := structField.Name
 
-		if val, ok := record.Get(fmt.Sprintf("%s.%s", alias, tag)); ok {
-			// Ignore nil values
-			if val == nil {
-				continue
-			}
+		if val, ok := record.Get(fmt.Sprintf("%s.%s", alias, tag)); ok && val != nil {
 			field := elem.FieldByName(fieldName)
-			if field.IsValid() {
-				t := fieldType.String()
-				switch t {
-				case "string":
-					field.SetString(val.(string))
-				case "int64":
-					field.SetInt(val.(int64))
+			if field.IsValid() && field.CanSet() {
+				switch fieldType.Kind() {
+				case reflect.String:
+					if strVal, ok := val.(string); ok {
+						field.SetString(strVal)
+					}
+				case reflect.Int, reflect.Int64:
+					if intVal, ok := val.(int64); ok {
+						field.SetInt(intVal)
+					}
+				case reflect.Bool:
+					if boolVal, ok := val.(bool); ok {
+						field.SetBool(boolVal)
+					}
+				case reflect.Ptr:
+					switch fieldType.Elem().Kind() {
+					case reflect.String:
+						if strVal, ok := val.(*string); ok {
+							field.Set(reflect.ValueOf(strVal))
+						}
+					case reflect.Int, reflect.Int64:
+						if intVal, ok := val.(*int64); ok {
+							field.Set(reflect.ValueOf(intVal))
+						}
+					case reflect.Bool:
+						if boolVal, ok := val.(*bool); ok {
+							field.Set(reflect.ValueOf(boolVal))
+						}
+					}
+				case reflect.Slice:
+					// Handle slice types
 				default:
-					return fmt.Errorf("invalid type: %s", t)
+					return fmt.Errorf("unsupported type: %s", fieldType.Kind().String())
 				}
 			}
 		}
-
 	}
 
 	return nil
@@ -73,8 +87,6 @@ func PtrOrPtrEmptyString(ptr *string) *string {
 func Float64Ptr(v float64) *float64 {
 	return &v
 }
-
-
 
 func GetMetadataValue(meta map[string]interface{}, key string, defaultValue interface{}) interface{} {
 	if value, exists := meta[key]; exists {

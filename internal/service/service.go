@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/internal/repository"
-	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/dataparser"
 )
 
 // Service exposes application bussiness logic
@@ -36,9 +35,52 @@ func (s *Service) CreateInfrastructureComponent(version string, component datapa
 		return s.repository.CreatePodNode(version, component)
 	case "PhysicalHost":
 		return s.repository.CreatePhysicalHostNode(version, component)
+	case "PersistentVolume":
+		return s.repository.CreatePVNode(version, component)
+	case "PersistentVolumeClaim":
+		return s.repository.CreatePVCNode(version, component)
+	case "PDIndicator":
+		return s.repository.CreatePDNode(version, component)
+	case "Snapshot":
+		return s.repository.CreateSnapshotNode(version, component)
 	default:
 		return "", fmt.Errorf("unknown component type: %s", component.Type)
 	}
+}
+
+func (s *Service) CreateRelationships(v string, component dataparser.InfrastructureComponent) error {
+	switch component.Type {
+	case "Project":
+		return nil
+	case "Instance":
+		return s.repository.CreateInstanceRelationships(component.ID, v, component.Relationships)
+	case "ClusterNode":
+		return s.repository.CreateClusterNodeRel(component.ID, v, component.Relationships)
+	case "Pod":
+		return s.repository.CreatePodRel(component.ID, v, component.Relationships)
+	case "Volume":
+		return s.repository.CreateVolumeRel(component.ID, v, component.Relationships)
+	case "PersistentVolumeClaim":
+		return s.repository.CreatePVCRel(component.ID, v, component.Relationships)
+	case "PhysicalHost":
+		return nil
+	case "PDIndicator":
+		return nil
+	case "PersistentVolume":
+		return s.repository.CreatePVRel(component.ID, v, component.Relationships)
+	case "Snapshot":
+		return s.repository.CreateSnapshotRel(component.ID, v, component.Relationships)
+	default:
+		return fmt.Errorf("unknown component type: %s", component.Type)
+	}
+}
+
+func (s *Service) CreatePVRel(pvID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreatePVRel(pvID, version, relationships)
+}
+
+func (s *Service) CreatePVCRel(pvcID string, version string, relationships []dataparser.Relationship) error {
+	return s.repository.CreatePVCRel(pvcID, version, relationships)
 }
 
 func (s *Service) CreateVolumeRel(volumeID string, version string, relationships []dataparser.Relationship) error {
@@ -74,17 +116,6 @@ func (s *Service) LinkProjectToMetadata(version string, projectUUID string) erro
 }
 
 // FindInstanceByUUID finds a Instance by its uuid
-func (s *Service) FindInstanceByUUID(ctx context.Context, uuid string) (*model.Instance, error) {
-	return s.repository.FindInstanceByUUID(ctx, uuid)
-}
-
-// FindInstanceByUUID finds a Instance by its projectID
-func (s *Service) FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error) {
-	return s.repository.FindInstanceByProjectID(ctx, projectID)
-}
-
-// TestNeo4jConnection tests connectivity to neo4j db
-func (s *Service) TestNeo4jConnection(ctx context.Context) (string, error) {
-	logger.Info("Check works")
-	return s.repository.TestNeo4jConnection(ctx)
+func (s *Service) GetPdsWithCategory(ctx context.Context, version string, categoryName string) ([]*model.Pod, error) {
+	return s.repository.GetPdsWithCategory(ctx, version, categoryName)
 }

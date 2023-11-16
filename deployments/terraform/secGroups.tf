@@ -51,6 +51,26 @@ resource "openstack_networking_secgroup_rule_v2" "transparencyMonitor_7687" {
   security_group_id = "${openstack_networking_secgroup_v2.transparencyMonitor.id}"
 }
 
+resource "openstack_networking_secgroup_rule_v2" "transparencyMonitor_8080" {
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = "tcp"
+  port_range_min    = 8080
+  port_range_max    = 8080
+  remote_ip_prefix  = "0.0.0.0/0"
+  security_group_id = "${openstack_networking_secgroup_v2.transparencyMonitor.id}"
+}
+
+resource "openstack_networking_secgroup_rule_v2" "transparencyMonitor_5005" {
+  direction         = "ingress"
+  ethertype         = "IPv4"
+  protocol          = "tcp"
+  port_range_min    = 5005
+  port_range_max    = 5005
+  remote_ip_prefix  = "0.0.0.0/0"
+  security_group_id = "${openstack_networking_secgroup_v2.transparencyMonitor.id}"
+}
+
 resource "openstack_networking_secgroup_rule_v2" "transparencyMonitor_2376" {
   direction         = "ingress"
   ethertype         = "IPv4"

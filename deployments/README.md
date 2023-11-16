@@ -33,14 +33,14 @@ Outputs:
 
 address = "195.15.194.154"
 ```
- [http://FLOATING-IP:7474](http://FLOATING-IP:7474) access Neo4j database web interface
+ [http://FLOATING-IP:7474/browser](http://FLOATING-IP:7474) access Neo4j database web interface
 
   [http://FLOATING-IP:5005](http://FLOATING-IP:5005) access the transparency Dashboard
 
- [http://FLOATING-IP:8080](http://FLOATING-IP:8080) access the GraphQL API
+ [http://FLOATING-IP:8080/playground](http://FLOATING-IP:8080) access the GraphQL API
 
 
-### Conntect to VM
+### Connect to VM
 
 `ssh -i ~/.shh ubuntu@FLOATING-IP`
 

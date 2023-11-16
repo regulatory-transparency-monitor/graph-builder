@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/dataparser"
 )
 
 // Repository definition for repository
@@ -21,8 +21,11 @@ type Repository interface {
 	CreateInstanceNode(version string, instance dataparser.InfrastructureComponent) (uuid string, err error)   // Create a new instance node
 	CreatePhysicalHostNode(version string, host dataparser.InfrastructureComponent) (uuid string, err error)   // Create a new physical host node
 	CreateVolumeNode(version string, volume dataparser.InfrastructureComponent) (uuid string, err error)       // Create a new volume node
+	CreateSnapshotNode(version string, snapshot dataparser.InfrastructureComponent) (uuid string, err error)   // Create a new snapshot node
 	CreateClusterNode(version string, clusterNode dataparser.InfrastructureComponent) (uuid string, err error) // Create a new cluster node
 	CreatePodNode(version string, pod dataparser.InfrastructureComponent) (uuid string, err error)             // Create a new pod node
+	CreatePVNode(version string, pv dataparser.InfrastructureComponent) (uuid string, err error)
+	CreatePVCNode(version string, pvc dataparser.InfrastructureComponent) (uuid string, err error)
 
 	//Old loghic Create and update nodes using generic data
 	CreateOrUpdateServer(dataparser.InfrastructureComponent) error
@@ -32,13 +35,17 @@ type Repository interface {
 
 	// Create Relationships
 	LinkProjectToMetadata(version string, projectUUID string) error // Link a projectUUID of current scan to metadata node
-
+	// Link Meta to next Metanode
 	CreateInstanceRelationships(instanceID string, version string, relationships []dataparser.Relationship) error // Create relationships for a given instance
 	CreateClusterNodeRel(nodeID string, version string, relationships []dataparser.Relationship) error            // Create relationships for a given cluster node
 	CreateVolumeRel(volumeID string, version string, relationships []dataparser.Relationship) error               // Create relationships for a given volume
 	CreatePodRel(podID string, version string, relationships []dataparser.Relationship) error                     // Create relationships for a given pod
-	// GraphQL logic
-	FindInstanceByUUID(ctx context.Context, uuid string) (*model.Instance, error)
-	FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error)
-	TestNeo4jConnection(ctx context.Context) (string, error)
+	CreatePVCRel(pvcID string, version string, relationships []dataparser.Relationship) error
+	CreatePVRel(pvID string, version string, relationships []dataparser.Relationship) error
+	CreatePDNode(version string, pd dataparser.InfrastructureComponent) (uuid string, err error)
+	CreateSnapshotRel(snapshotID string, version string, relationships []dataparser.Relationship) error //Snapshot to Volume
+	// GraphQL API
+	GetPdsWithCategory(ctx context.Context, version string, categoryName string) ([]*model.Pod, error) // Use Casae 1
+	// Use Casae 2
+	// Use Casae 3
 }

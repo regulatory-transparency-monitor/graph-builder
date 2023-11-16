@@ -1,3 +1,12 @@
 deployments/neo4j/*
+deployments/openrc.sh
+deployments/terraform/terraform.tfstate*
+deployments/terraform/.terraform
+deployments/terraform/.terraform*
+deployments/terraform/instance_ip.txt
 .DS_Store
 .vscode/
+config/config.yaml
+terraform.tfstate*
+cmd/config.yaml
+cmd/logfile.log

@@ -16,6 +16,10 @@ func NewVersionManager(initialVersion string) *VersionManager {
 	return &VersionManager{CurrentVersion: initialVersion}
 }
 
+func (vm *VersionManager) GetCurrentVersion() string {
+	return vm.CurrentVersion
+}
+
 func (vm *VersionManager) IncrementVersion() {
 	vm.CurrentVersion = incrementVersion(vm.CurrentVersion)
 }
@@ -35,12 +39,7 @@ func incrementVersion(version string) string {
 		logger.Error("Failed to parse version components: ", logger.LogFields{"major": err1, "minor": err2, "patch": err3})
 		return "0.0.0"
 	}
-	// Incrementing only the patch version
 	patch++
 
 	return fmt.Sprintf("%d.%d.%d", major, minor, patch)
-}
-
-func (vm *VersionManager) GetCurrentVersion() string {
-    return vm.CurrentVersion
 }

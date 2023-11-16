@@ -2,11 +2,12 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/neo4j/neo4j-go-driver/neo4j"
 	"github.com/regulatory-transparency-monitor/graph-builder/graph/model"
-	"github.com/regulatory-transparency-monitor/graph-builder/internal/dataparser"
+	"github.com/regulatory-transparency-monitor/graph-builder/pkg/dataparser"
 	"github.com/regulatory-transparency-monitor/graph-builder/pkg/logger"
 	"github.com/spf13/viper"
 )
@@ -65,7 +66,7 @@ func (r *Neo4jRepository) GetLabels() ([]string, error) {
 }
 
 func (r *Neo4jRepository) SetupUUIDForKnownLabels() error {
-	labels := []string{"Metadata", "Project", "Instance", "Volume", "ClusterNode", "Pod", "PhysicalHost"}
+	labels := []string{"Metadata", "Project", "Instance", "Volume", "ClusterNode", "Pod", "PhysicalHost", "PersistentVolume", "PersistentVolumeClaim", "PDIndicator", "DataCategory", "Snapshot"}
 
 	for _, label := range labels {
 		if err := r.CreateUUIDConstraints(label); err != nil {
@@ -139,6 +140,12 @@ func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) e
 		return fmt.Errorf("error creating Neo4j session: %v", err)
 	}
 	defer session.Close()
+	// Step 1: Get the latest version
+	latestVersion, err := r.GetLatestVersion()
+	if err != nil && err.Error() != "no metadata nodes found in the database" {
+		// Handle error if it is not just "no metadata nodes found"
+		return fmt.Errorf("error getting the latest Metadata version: %v", err)
+	}
 
 	query := `
 		CREATE (m:Metadata {version: $version, scanTimestamp: $timestamp})
@@ -152,6 +159,21 @@ func (r *Neo4jRepository) CreateMetadataNode(version string, timestamp string) e
 	_, err = session.Run(query, parameters)
 	if err != nil {
 		return fmt.Errorf("error creating Metadata node in Neo4j with query: %s, %v", query, err)
+	}
+	// Step 3: If there is a previous version, create a relationship with the new version
+	if latestVersion != "" {
+		queryCreateRelationship := `
+			MATCH (mNew:Metadata {version: $newVersion}), (mOld:Metadata {version: $oldVersion})
+			CREATE (mOld)-[:NEXT_VERSION]->(mNew)
+		`
+		parametersRelationship := map[string]interface{}{
+			"newVersion": version,
+			"oldVersion": latestVersion,
+		}
+		_, err = session.Run(queryCreateRelationship, parametersRelationship)
+		if err != nil {
+			return fmt.Errorf("error creating relationship in Neo4j with query: %s, %v", queryCreateRelationship, err)
+		}
 	}
 	return nil
 }
@@ -361,6 +383,65 @@ func (r *Neo4jRepository) CreateVolumeNode(version string, volume dataparser.Inf
 	return "", fmt.Errorf("failed to retrieve UUID for volume: %s", volume.ID)
 }
 
+// CreateVolumeNode always creates a new volume node and returns its UUID
+func (r *Neo4jRepository) CreateSnapshotNode(version string, snapshot dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CREATE (s:Snapshot {
+		uuid: apoc.create.uuid(),
+		version: $version,
+		id: $id,
+		name: $name,
+		type: $type,
+		status: $status,
+		size: $size,
+		createdAt: $createdAt,
+		updatedAt: $updatedAt,
+		description: $description,
+		userID: $userID,
+		groupSnapshotID: $groupSnapshotID
+
+		
+	})
+	RETURN s.uuid as uuid
+	`
+
+	parameters := map[string]interface{}{
+		"version":         version,
+		"id":              snapshot.ID,
+		"name":            snapshot.Name,
+		"type":            snapshot.Type,
+		"status":          snapshot.Metadata["Status"],
+		"size":            snapshot.Metadata["Size"],
+		"createdAt":       snapshot.Metadata["CreatedAt"],
+		"updatedAt":       snapshot.Metadata["UpdatedAt"],
+		"description":     snapshot.Metadata["Description"],
+		"userID":          snapshot.Metadata["UserID"],
+		"groupSnapshotID": snapshot.Metadata["GroupSnapshotID"],
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating snapshot node: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("failed to retrieve UUID for snapshot: %s", snapshot.ID)
+}
+
 // CreateClusterNode always creates a new clusterNode and returns its UUID
 func (r *Neo4jRepository) CreateClusterNode(version string, clusterNode dataparser.InfrastructureComponent) (uuid string, err error) {
 	session, err := r.Connection.Session(neo4j.AccessModeWrite)
@@ -425,7 +506,8 @@ func (r *Neo4jRepository) CreatePodNode(version string, pod dataparser.Infrastru
 		id: $id,
 		name: $name,
 		type: $type,
-		createdAt: $createdAt
+		createdAt: $createdAt,
+		storage: $storage
 	})
 	RETURN p.uuid as uuid
     `
@@ -437,6 +519,7 @@ func (r *Neo4jRepository) CreatePodNode(version string, pod dataparser.Infrastru
 		"name":      pod.Name,
 		"type":      pod.Type,
 		"createdAt": pod.Metadata["CreatedAt"], // assuming createdAt exists in the Metadata
+		"storage":   pod.Metadata["Volumes"],
 	}
 
 	result, err := session.Run(query, parameters)
@@ -455,6 +538,155 @@ func (r *Neo4jRepository) CreatePodNode(version string, pod dataparser.Infrastru
 	}
 
 	return "", nil
+}
+
+func (r *Neo4jRepository) CreatePVNode(version string, pv dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	// Define the CREATE query
+	query := `
+    CREATE (pv:PersistentVolume {
+        uuid: apoc.create.uuid(),
+        version: $version,
+        id: $id,
+        name: $name,
+        type: $type,
+        createdAt: $createdAt
+    })
+    RETURN pv.uuid as uuid
+    `
+
+	// Define the parameters
+	parameters := map[string]interface{}{
+		"version":   version,
+		"id":        pv.ID,
+		"name":      pv.Name,
+		"type":      pv.Type,
+		"createdAt": pv.Metadata["CreatedAt"],
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating PersistentVolume: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+func (r *Neo4jRepository) CreatePVCNode(version string, pvc dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	// Define the CREATE query
+	query := `
+    CREATE (pvc:PersistentVolumeClaim {
+        uuid: apoc.create.uuid(),
+        version: $version,
+        id: $id,
+        name: $name,
+        type: $type
+    })
+    RETURN pvc.uuid as uuid
+    `
+
+	// Define the parameters
+	parameters := map[string]interface{}{
+		"version": version,
+		"id":      pvc.ID,
+		"name":    pvc.Name,
+		"type":    pvc.Type,
+	}
+
+	//logger.Debug(logger.LogFields{"PVC TYPE": pvc.Type})
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error creating PersistentVolumeClaim: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		rawUUID, ok := result.Record().Get("uuid")
+		if ok && rawUUID != nil {
+			uuidStr, ok := rawUUID.(string)
+			if ok {
+				return uuidStr, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+func (r *Neo4jRepository) CreatePDNode(version string, pd dataparser.InfrastructureComponent) (uuid string, err error) {
+	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	query := `
+    CALL apoc.create.node(['PDIndicator'], {
+        uuid: apoc.create.uuid(),
+        version: $version,
+        id: $id,
+        name: $name,
+        type: $type
+    })
+    YIELD node AS pd
+    WITH pd, $dataDisclosed.dataCategories AS dataCategories
+    UNWIND dataCategories AS category
+    CREATE (pd)-[:HAS_CATEGORY]->(:DataCategory {
+        name: category.name,
+        purpose: category.purpose,
+        legalBasis: category.legalBasis,
+        storage: category.storage
+    })
+    RETURN pd.uuid as uuid
+    `
+
+	parameters := map[string]interface{}{
+		"version": version,
+		"id":      pd.ID,
+		"name":    pd.Name,
+		"type":    pd.Type,
+	}
+
+	if pdJSON, ok := pd.Metadata["has_pd"].(string); ok {
+		var pdData map[string]interface{}
+		if err := json.Unmarshal([]byte(pdJSON), &pdData); err != nil {
+			return "", fmt.Errorf("error unmarshalling PD data: %v", err)
+		}
+		parameters["dataDisclosed"] = pdData
+	} else {
+		return "", fmt.Errorf("PD data is not a valid JSON string: %v", pd.Metadata["has_pd"])
+	}
+
+	result, err := session.Run(query, parameters)
+	if err != nil {
+		return "", fmt.Errorf("error running Cypher query: %s, %v", query, err)
+	}
+
+	if result.Next() {
+		return result.Record().GetByIndex(0).(string), nil
+	}
+
+	return "", fmt.Errorf("no UUID returned by query: %s", query)
 }
 
 // LinkVolumeToInstance creates a relationship between a volume and attached Instances
@@ -552,10 +784,7 @@ func (r *Neo4jRepository) CreateOrUpdateVolume(volume dataparser.InfrastructureC
 
 	_, err = session.Run(query, parameters)
 	if err != nil {
-		logger.Error("Error creating Volume in Neo4j", err)
-	} else {
-
-		logger.Debug("Created volume in Neo4j", logger.LogFields{"volume_id": volume.ID})
+		logger.Error("error creating Volume in Neo4j", err)
 	}
 	return err
 }
@@ -610,9 +839,9 @@ func (r *Neo4jRepository) CreateOrUpdateServer(instance dataparser.Infrastructur
 
 	_, err = session.Run(query, parameters)
 	if err != nil {
-		return fmt.Errorf("Error creating instance in Neo4j", err)
+		return fmt.Errorf("error creating instance in Neo4j", err)
 	} else { // if no err create relationship
-		logger.Debug("Created instance in Neo4j", logger.LogFields{"instance_id": instance.ID})
+		//logger.Debug("Created instance in Neo4j", logger.LogFields{"instance_id": instance.ID})
 
 		// Handle relationships
 		for _, rel := range instance.Relationships {
@@ -741,17 +970,24 @@ func (r *Neo4jRepository) CreateOrUpdatePod(pod dataparser.InfrastructureCompone
 				}
 			}
 		}
-		logger.Debug("Created pod in Neo4j", logger.LogFields{"pod_id": pod.ID})
+		// logger.Debug("Created pod in Neo4j", logger.LogFields{"pod_id": pod.ID})
 	}
 	return err
 }
 
 // FindInstanceByUUID finds a Instance by its uuid
-func (r *Neo4jRepository) FindInstanceByUUID(ctx context.Context, uuid string) (*model.Instance, error) {
+func (r *Neo4jRepository) GetPdsWithCategory(ctx context.Context, version string, categoryName string) ([]*model.Pod, error) {
 	query := `
-		match (m:Instance) where m.uuid = $uuid return m.uuid, m.name, m.created, m.status
+		MATCH (p:Pod)-[:HAS_PD]->(pd:PDIndicator)-[:HAS_CATEGORY]->(dc:DataCategory)
+		WHERE p.version = $version AND dc.name = $categoryName
+		RETURN p.id, p.name, p.type, p.createdAt, p.storage
 	`
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
+	parameters := map[string]interface{}{
+		"version":      version,
+		"categoryName": categoryName,
+	}
+
+	session, err := r.Connection.Session(neo4j.AccessModeRead)
 
 	if err != nil {
 		return nil, err
@@ -759,47 +995,24 @@ func (r *Neo4jRepository) FindInstanceByUUID(ctx context.Context, uuid string) (
 
 	defer session.Close()
 
-	args := map[string]interface{}{
-		"uuid": uuid,
-	}
-
-	result, err := session.Run(query, args)
-
+	result, err := session.Run(query, parameters)
 	if err != nil {
-		logger.Error("Cannot find Instance by uuid", logger.LogFields{"uuid": uuid}, err)
+		return nil, err
 	}
+	// logger.Debug("tried to get ndoe", logger.LogFields{"query": query}, logger.LogFields{"parameters": parameters})
 
-	Instance := model.Instance{}
-
+	var pods []*model.Pod
 	for result.Next() {
-		ParseCypherQueryResult(result.Record(), "m", &Instance)
-	}
-
-	return &Instance, err
-}
-
-func (r *Neo4jRepository) TestNeo4jConnection(ctx context.Context) (string, error) {
-	session, err := r.Connection.Session(neo4j.AccessModeWrite)
-	if err != nil {
-		return "", err
-	}
-	defer session.Close()
-
-	result, err := session.Run("RETURN 1", nil)
-	if err != nil {
-		// Handle error, query execution failed
-		fmt.Println("Failed to execute query:", err)
-		return "", err
-	}
-
-	if result.Next() {
 		record := result.Record()
-		value := record.GetByIndex(0)
-		// Process the fetched value as needed
-		fmt.Println("Fetched Value:", value)
+		pod := &model.Pod{}
+		err := ParseCypherQueryResult(record, "p", pod)
+		if err != nil {
+			return nil, err // or log error and continue, depending on your use case
+		}
+		pods = append(pods, pod)
 	}
-	return "", err
 
+	return pods, nil
 }
 
 func (r *Neo4jRepository) FindInstanceByProjectID(ctx context.Context, projectID string) ([]*model.Instance, error) {

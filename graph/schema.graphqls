@@ -1,60 +1,132 @@
-interface Node {
-  uuid: ID!
+type Query {
+    getMetadata(version: String!): Metadata
+    getProject(uuid: String!): Project
+    getInstance(id: String!): Instance
+    getVolume(id: String!): Volume
+    getPhysicalHost(id: String!): PhysicalHost
+    getClusterNode(id: String!): ClusterNode
+    getPod(id: String!): Pod
+    getPersistentVolume(id: String!): PersistentVolume
+    getPersistentVolumeClaim(id: String!): PersistentVolumeClaim
+    getPDIndicator(id: String!): PDIndicator
+    getDataCategory(name: String!): DataCategory
+    getPdsWithCategory(version: String!, categoryName: String!): [Pod]
 }
 
-type Zone implements Node{
-    uuid: ID!
+type Metadata {
+    version: String!
+    scanTimestamp: String!
+    projects: [Project!]!
+}
+
+type Project {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
     availabilityZone: String!
+    enabled: Boolean!
+    description: String!
+    instances: [Instance!]!
 }
 
-type Cluster implements Node{
-    uuid: ID!
-    id: ID!
+type Instance {
+    uuid: String!
+    id: String!
     name: String!
-    masterNodes: [Instance!]!
-    workerNodes: [Instance!]
-}
-
-type Instance implements Node{
-    uuid: ID!
-    id: ID!
-    name: String!
-    description: String
-    projectID: String!
-    status: String
-    availabilityZone: [Zone!]!
+    type: String!
+    availabilityZone: String!
+    userID: String!
+    hostID: String!
+    tenantID: String!
     created: String!
-    cluster: Cluster
-    mountedVolume: Volume
+    updated: String!
+    volumesAttached: [String!]!
+    status: String!
+    physicalHost: PhysicalHost
+    volumes: [Volume!]!
 }
 
-type Volume implements Node{
-  uuid: ID!
-  id: ID!
-  name: String!
-  pod: Pod
-  attachedInstance: Instance!
+type PhysicalHost {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    availabilityZone: String!
+    instances: [Instance!]!
+}
+
+type Volume {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    availabilityZone: String!
+    status: String!
+    size: Int!
+    bootable: Boolean!
+    encrypted: Boolean!
+    multiattach: Boolean!
+    device: String!
+    srcSnapshot: String!
+    instances: [Instance!]!
+    persistentVolume: PersistentVolume
+}
+
+type ClusterNode {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    createdAt: String!
+    provisionedInstance: Instance!
+    pods: [Pod!]!
 }
 
 type Pod {
-  id: ID!
-  name: String!
-  workerNode: Instance!
-  schema: String
-  has_pii: Boolean!
-  volumes: [Volume!]
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    createdAt: String!
+    storage: String!
+    clusterNode: ClusterNode!
+    persistentVolumeClaims: [PersistentVolumeClaim!]!
+    pdIndicators: [PDIndicator!]!
 }
 
-type Schema {
-  id: ID!
-  pod: Pod!
-  privacyInfo: String!
+type PersistentVolume {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    createdAt: String!
+    storedVolume: Volume!
+    persistentVolumeClaim: PersistentVolumeClaim!
 }
 
-type Query {
-  """ Find a Instance by its uuid """
-  instance(uuid: String!): Instance
-  """ Find instances by projectID """
-  instances(projectID: String): [Instance!]!
+type PersistentVolumeClaim {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    persistentVolume: PersistentVolume!
+    pods: [Pod!]!
 }
 
+type PDIndicator {
+    uuid: String!
+    id: String!
+    name: String!
+    type: String!
+    dataCategories: [DataCategory!]!
+    pods: [Pod!]!
+}
+
+type DataCategory {
+    name: String!
+    purpose: String!
+    legalBasis: String!
+    storage: String!
+    pdIndicators: [PDIndicator!]!
+}
